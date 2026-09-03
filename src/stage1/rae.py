@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 from transformers import AutoConfig
-from encoders.factory import create_encoder_from_string
+from encoders.vision_encoder import create_encoder
 from .decoders import GeneralDecoder
 
 def _load_decoder(config_path, hidden_size, patch_size, num_patches, pretrained_path=None):
@@ -41,7 +41,7 @@ class RAE(nn.Module):
     ):
         super().__init__()
 
-        self.encoder = create_encoder_from_string(encoder_name, device=None, resolution=resolution)
+        self.encoder = create_encoder(encoder_name, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), resolution=resolution)
         self.resolution = resolution
         self.encoder_patch_size = self.encoder.patch_size
         self.latent_dim = self.encoder.hidden_size

@@ -1,17 +1,12 @@
-"""Unified dataloader interface for RAEv2 training."""
+"""Unified dataloader interface for MiniDog (dog-breed T2I) training."""
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import torch
 import webdataset as wds
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
-
-from .imagenet_hf_dataset import ImageNetHFDataset
-
-T2I_HF_DATASETS = {'mscoco', 'mjhq', 'geneval', 'dpgbench', 'genaibench', 'simpleeval', 'sft_hack_datasets'}
 
 
 @dataclass
@@ -65,42 +60,6 @@ class DataloaderResult:
         return iter(self.loader)
 
 
-class _T2IHFDataset(Dataset):
-    """Internal HuggingFace dataset wrapper for MSCOCO/MJHQ T2I datasets."""
-
-    def __init__(
-        self,
-        dataset_name: str,
-        split: str = "val",
-        transform: Optional[transforms.Compose] = None,
-        data_dir: Optional[str] = "./data",
-    ):
-        from datasets import load_from_disk
-
-        # Load from local Arrow format (e.g., data/mscoco/val)
-        local_path = Path(data_dir) / dataset_name / split
-        self.hf_dataset = load_from_disk(str(local_path))
-        self.transform = transform
-
-    def __len__(self) -> int:
-        return len(self.hf_dataset)
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, str]:
-        sample = self.hf_dataset[idx]
-        text = sample['text']
-
-        if 'image' in sample:
-            image = sample['image']
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            if self.transform is not None:
-                image = self.transform(image)
-        else:
-            image = torch.empty(0)
-
-        return image, text
-
-
 def prepare_unified_dataloader(
     config: dict,
     image_size: int,
@@ -114,208 +73,44 @@ def prepare_unified_dataloader(
     virtual_epoch_steps: Optional[int] = None,
 ) -> DataloaderResult:
     """
-    Unified dataloader factory for ImageNet, BLIP3O, MSCOCO, and MJHQ.
+    Dataloader factory for the dog-breed WebDataset shards.
 
     Args:
         config: Dataset configuration dict with structure:
             {
-                'target': 'imagenet' | 'blip3o' | 'mscoco' | 'mjhq' | 'geneval',
-                'type': 'hf' | 'latents' | 'wds',
-                'params': {
-                    'data_dir': str,
-                    'split': str,
-                    'splits': ['journeydb', 'short-caption'],  # for BLIP3O
-                    ...
-                }
+                'target': 'dogs',
+                'type': 'wds' | 'latents',   # raw image shards or precomputed latents
+                'data_dir': str,
+                'shuffle_buffer': int,
+                'seed': int,
             }
-        image_size: Target image resolution
+        image_size: Target image resolution (ignored for precomputed latents)
         batch_size: Per-GPU batch size
         num_workers: Number of dataloader workers
-        rank: Distributed training rank
+        rank: Distributed training rank (unused; WebDataset splits shards by node)
         world_size: Total number of GPUs
-        transform: Optional custom transform
-        condition_type: 'label' or 'text'
+        transform: Optional custom transform (raw image shards only)
+        condition_type: Kept for interface compatibility; the dog data is text-conditioned
         shuffle: Whether to shuffle data (False for eval)
+        virtual_epoch_steps: Optional fixed number of steps per epoch
 
     Returns:
         DataloaderResult with unified interface
     """
-    target = config.get("target", "imagenet")
+    target = config.get("target", "dogs")
+    if target != "dogs":
+        raise ValueError(f"Unsupported dataset target {target!r}; MiniDog only supports 'dogs'.")
 
-    if target in T2I_HF_DATASETS:
-        result = _prepare_t2i_hf_loader(
-            target, config, image_size, batch_size, num_workers, rank, world_size, transform, shuffle
+    if config.get("type", "wds") == "latents":
+        result = _prepare_dogs_latents_loader(
+            config, batch_size, num_workers, world_size, shuffle
         )
-    elif target == "blip3o":
-        result = _prepare_blip3o_loader(
-            config, image_size, batch_size, num_workers, world_size, transform
+    else:
+        result = _prepare_dogs_loader(
+            config, image_size, batch_size, num_workers, world_size, transform, shuffle
         )
-    elif target == "imagenet":
-        result = _prepare_imagenet_loader(
-            config, image_size, batch_size, num_workers, rank, world_size, transform, condition_type, shuffle
-        )
-    elif target == "dogs":
-        if config.get("type", "wds") == "latents":
-            result = _prepare_dogs_latents_loader(
-                config, batch_size, num_workers, world_size, shuffle
-            )
-        else:
-            result = _prepare_dogs_loader(
-                config, image_size, batch_size, num_workers, world_size, transform, shuffle
-            )
     result.virtual_epoch_steps = virtual_epoch_steps
     return result
-
-
-def _prepare_blip3o_loader(
-    config: dict,
-    image_size: int,
-    batch_size: int,
-    num_workers: int,
-    world_size: int,
-    transform: Optional[transforms.Compose],
-) -> DataloaderResult:
-    """Prepare BLIP3O WebDataset loader."""
-    from .blip3o_wds_dataset import BLIP3OWebDataset
-
-    data_dir = config.get("data_dir", "./data/blip3o")
-    # Support both 'splits' (list) and 'split' (single) keys
-    splits = config.get("splits", config.get("split", "short-caption"))
-    shuffle_buffer = config.get("shuffle_buffer", 10000)
-    seed = config.get("seed", 42)
-
-    wds_pipeline = BLIP3OWebDataset(
-        data_dir=data_dir,
-        splits=splits,
-        transform=transform,
-        image_size=image_size,
-        shuffle_buffer=shuffle_buffer,
-        seed=seed,
-    )
-
-    dataset = wds_pipeline.create_pipeline(epoch=0)
-    total_samples = wds_pipeline.estimated_size
-    steps = total_samples // (batch_size * world_size)
-
-    loader = wds.WebLoader(
-        dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=True,
-        multiprocessing_context="spawn" if num_workers > 0 else None,
-    )
-    # Bound epoch to exactly `steps` batches (with_epoch stops iteration, with_length only sets __len__)
-    loader = loader.with_epoch(steps)
-
-    return DataloaderResult(
-        loader=loader,
-        sampler=None,
-        dataset_size=total_samples,
-        is_iterable=True,
-        _wds_pipeline=wds_pipeline,
-        _batch_size=batch_size,
-        _num_workers=num_workers,
-        _world_size=world_size,
-    )
-
-
-def _prepare_t2i_hf_loader(
-    dataset_name: str,
-    config: dict,
-    image_size: int,
-    batch_size: int,
-    num_workers: int,
-    rank: int,
-    world_size: int,
-    transform: Optional[transforms.Compose],
-    shuffle: bool,
-) -> DataloaderResult:
-    """Prepare MSCOCO/MJHQ HuggingFace loader."""
-    split = config.get("split", "val")
-    data_dir = config.get("data_dir", "./data")  # Local data directory
-
-    if transform is None:
-        transform = transforms.Compose([
-            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.CenterCrop(image_size),
-            transforms.ToTensor(),
-        ])
-
-    dataset = _T2IHFDataset(
-        dataset_name=dataset_name,
-        split=split,
-        transform=transform,
-        data_dir=data_dir,
-    )
-
-    sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=shuffle)
-    loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        sampler=sampler,
-        num_workers=num_workers,
-        pin_memory=True,
-        drop_last=shuffle,  # drop_last=True for train, False for eval
-        persistent_workers=num_workers > 0,
-        multiprocessing_context="spawn" if num_workers > 0 else None,
-    )
-
-    return DataloaderResult(
-        loader=loader,
-        sampler=sampler,
-        dataset_size=len(dataset),
-        is_iterable=False,
-    )
-
-
-def _prepare_imagenet_loader(
-    config: dict,
-    image_size: int,
-    batch_size: int,
-    num_workers: int,
-    rank: int,
-    world_size: int,
-    transform: Optional[transforms.Compose],
-    condition_type: str,
-    shuffle: bool = True,
-) -> DataloaderResult:
-    """Prepare ImageNet-style loader using existing dataset classes."""
-    data_dir = config.get("data_dir", "./data/imagenet")
-    split = config.get("split", "train")
-
-    # Build transform if not provided
-    if transform is None:
-        transform = transforms.Compose([
-            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.ToTensor(),
-        ])
-
-    # Create dataset based on type
-    dataset = ImageNetHFDataset(
-        data_dir=data_dir,
-        split=split,
-        transform=transform,
-        condition_type=condition_type,
-    )
-
-    sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=shuffle)
-    loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        sampler=sampler,
-        num_workers=num_workers,
-        pin_memory=True,
-        drop_last=shuffle,  # drop_last=True for train, False for eval
-        persistent_workers=num_workers > 0,
-        multiprocessing_context="spawn" if num_workers > 0 else None,
-    )
-
-    return DataloaderResult(
-        loader=loader,
-        sampler=sampler,
-        dataset_size=len(dataset),
-        is_iterable=False,
-    )
 
 
 def _prepare_dogs_loader(
@@ -330,7 +125,7 @@ def _prepare_dogs_loader(
     """Prepare Dogs WebDataset loader."""
     from .dogs_wds_dataset import DogsWebDataset
 
-    data_dir = config.get("data_dir", "/data3/rey/dogs_wds")
+    data_dir = config.get("data_dir", "./data/dogs_wds")
     shuffle_buffer = config.get("shuffle_buffer", 5000)
     seed = config.get("seed", 42)
 
@@ -380,7 +175,7 @@ def _prepare_dogs_latents_loader(
     """Prepare Dogs pre-computed latents WebDataset loader."""
     from .dogs_latents_wds_dataset import DogsLatentsWebDataset
 
-    data_dir = config.get("data_dir", "/data3/rey/dogs_recaptioned_latents_wds")
+    data_dir = config.get("data_dir", "./data/dogs_latents_wds")
     shuffle_buffer = config.get("shuffle_buffer", 5000)
     seed = config.get("seed", 42)
 
@@ -415,3 +210,4 @@ def _prepare_dogs_latents_loader(
         _num_workers=num_workers,
         _world_size=world_size,
     )
+

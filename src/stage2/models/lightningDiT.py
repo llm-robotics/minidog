@@ -187,26 +187,6 @@ class LightningDiT(nn.Module):
         attn_mask = (1.0 - attn_mask[:, None, None, :]) * torch.finfo(seq.dtype).min
         return attn_mask
 
-    def _pool_image_to_text_attn(self, attn_weights, s, n):
-        """Collapse [B, heads, N, N] joint attention to a per-image-token text-attention entropy.
-
-        Averages over heads, keeps only image-token rows and text-token columns (the last
-        num_c_tokens of the sequence). Unlike a same-modality alignment target, the reference
-        teacher's tokenizer generally won't match this model's, so token-level (column-to-
-        column) comparison isn't meaningful -- instead we renormalize the text-key sub-vector
-        to sum to 1 (it doesn't on its own here, since only *part* of this row's full
-        image+time+text softmax budget goes to text) and take its entropy: "given this patch
-        engages with the caption at all, how confidently/peakily is that engagement focused,"
-        which is tokenizer-agnostic and comparable against the same statistic computed on a
-        teacher model (see encoders/bridgetower_attn_teacher.py). Returns [B, n].
-        """
-        weights = attn_weights.mean(dim=1)  # [B, N, N], average over heads
-        image_rows = weights[:, s:s + n, :]  # [B, n, N]
-        text_cols = image_rows[:, :, -self.num_c_tokens:]  # [B, n, num_c_tokens]
-        eps = 1e-8
-        p = text_cols / text_cols.sum(dim=-1, keepdim=True).clamp_min(eps)
-        return -(p.clamp_min(eps) * p.clamp_min(eps).log()).sum(dim=-1)  # [B, n]
-
     def forward(self, x, t, return_intermediate=False, return_attn_layer=None, **condition_kwargs):
         zt_intermediate = None
         attn_intermediate = None
@@ -216,10 +196,8 @@ class LightningDiT(nn.Module):
         for i, block in enumerate(self.blocks):
             want_weights = return_attn_layer is not None and (i + 1) == return_attn_layer
             if want_weights:
-                x, attn_weights = block(x, self.rope, attn_mask, return_weights=True)
-                attn_intermediate = self._pool_image_to_text_attn(attn_weights, s, n)
-            else:
-                x = block(x, self.rope, attn_mask)
+                raise NotImplementedError("attention-align (return_attn_layer) is not supported in MiniDog.")
+            x = block(x, self.rope, attn_mask)
             if return_intermediate and (i + 1) == self.repa_layer_depth:
                 zt_intermediate = self.repa_projector(x[:, :s + n, :])
 
@@ -238,38 +216,3 @@ class LightningDiT(nn.Module):
         if return_attn_layer is not None:
             return x, attn_intermediate
         return x
-
-
-class LightningDiTIG(LightningDiT):
-    def __init__(self, base_model_depth=8, **kwargs):
-        super().__init__(**kwargs)
-        self.base_model_depth = base_model_depth
-
-        self.base_final_layer = LightningFinalLayer(self.hidden_size, self.patch_size, self.in_channels)
-        nn.init.constant_(self.base_final_layer.linear.weight, 0)
-        nn.init.constant_(self.base_final_layer.linear.bias, 0)
-
-    def forward(self, x, t, return_intermediate=False, **condition_kwargs):
-        zt_intermediate = None
-        x_base = None
-        x = self._build_sequence(x, t, condition_kwargs)
-        attn_mask = self._build_attn_mask(x, condition_kwargs)
-        s, n = int(self.enable_reg), self.x_embedder.num_patches
-        for i, block in enumerate(self.blocks):
-            x = block(x, self.rope, attn_mask)
-            if return_intermediate and (i + 1) == self.repa_layer_depth:
-                zt_intermediate = self.repa_projector(x[:, :s + n, :])
-            if (i + 1) == self.base_model_depth:
-                x_base = x[:, s:s + n, :]
-
-        if self.enable_reg:
-            x, cls_pred = self.final_layer(x[:, :s + n, :])
-        else:
-            x = self.final_layer(x[:, :n, :])
-        x = self.unpatchify(x)
-        x_base = self.unpatchify(self.base_final_layer(x_base))
-
-        out = (x, x_base, cls_pred) if self.enable_reg else (x, x_base)
-        if return_intermediate:
-            return out, zt_intermediate
-        return out

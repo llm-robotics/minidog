@@ -22,48 +22,6 @@ class VAEConfig:
 
 # Pre-defined VAE configurations
 VAE_CONFIGS: Dict[str, VAEConfig] = {
-    "flux": VAEConfig(
-        pretrained_path="black-forest-labs/FLUX.1-dev",
-        subfolder="vae",
-        latent_channels=16,
-        downsample_factor=8,
-    ),
-    "flux2": VAEConfig(
-        pretrained_path="black-forest-labs/FLUX.2-dev",
-        subfolder="vae",
-        latent_channels=128,
-        downsample_factor=16,
-    ),
-    "e2e-flux": VAEConfig(
-        pretrained_path="REPA-E/e2e-flux-vae",
-        latent_channels=16,
-        downsample_factor=8,
-    ),
-    "sd3.5": VAEConfig(
-        pretrained_path="stabilityai/stable-diffusion-3.5-large",
-        subfolder="vae",
-        latent_channels=16,
-        downsample_factor=8,
-    ),
-    "e2e-sd3.5": VAEConfig(
-        pretrained_path="REPA-E/e2e-sd3.5-vae",
-        latent_channels=16,
-        downsample_factor=8,
-    ),
-    "sdvae-ema": VAEConfig(
-        pretrained_path="stabilityai/sd-vae-ft-ema",
-        latent_channels=4,
-        scaling_factor=0.18215,
-        shift_factor=0.0,
-        downsample_factor=8,
-    ),
-    "sdvae-mse": VAEConfig(
-        pretrained_path="stabilityai/sd-vae-ft-mse",
-        latent_channels=4,
-        scaling_factor=0.18215,
-        shift_factor=0.0,
-        downsample_factor=8,
-    ),
     "e2e-vavae": VAEConfig(
         pretrained_path="REPA-E/e2e-vavae-hf",
         latent_channels=32,
@@ -73,29 +31,6 @@ VAE_CONFIGS: Dict[str, VAEConfig] = {
         pretrained_path="REPA-E/e2e-invae-hf",
         latent_channels=32,
         downsample_factor=16,
-    ),
-    "sdxl-vae": VAEConfig(
-        pretrained_path="madebyollin/sdxl-vae-fp16-fix",
-        latent_channels=4,
-        downsample_factor=8,
-        scaling_factor=0.13025,
-        shift_factor=0.0,
-    ),
-    "qwen-vae": VAEConfig(
-        pretrained_path="Qwen/Qwen-Image",
-        latent_channels=16,
-        downsample_factor=8,
-        subfolder="vae",
-    ),
-    "e2e-qwen-vae": VAEConfig(
-        pretrained_path="REPA-E/e2e-qwenimage-vae",
-        latent_channels=16,
-        downsample_factor=8,
-    ),
-    "e2e-sdvae-mse": VAEConfig(
-        pretrained_path="REPA-E/e2e-sdvae-hf",
-        latent_channels=4,
-        downsample_factor=8,
     ),
 }
 
