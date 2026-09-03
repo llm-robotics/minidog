@@ -57,6 +57,9 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
 ```
 
 Checkpoints and sample grids land in `ckpts/$EXPERIMENT_NAME/`, FID/IS in `results/evals/`.
+FID/IS are logged every `eval.eval_interval` steps; to score a specific checkpoint (or sweep the
+CFG scale) run `torchrun --standalone --nproc_per_node=4 -m minidog.offline_eval --config <cfg>
+--checkpoint <ckpt> [--cfg-scale 1.5 2.0 6.0]`.
 `--compile` wraps the loss in `torch.compile`: ~25% higher throughput after a one-time warm-up
 of a minute or two, identical training curves. Drop it if compilation fails on your setup.
 Add `--wandb` with `ENTITY`, `PROJECT` and `WANDB_KEY` set to log to Weights & Biases.
