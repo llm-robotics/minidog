@@ -1,6 +1,6 @@
 # MiniDog-T2I
 
-Dog-breed text-to-image diffusion on 4 GPUs: a 12-layer LightningDiT trained with flow matching on
+Dog-breed text-to-image generation on 4 GPUs: a 12-layer LightningDiT trained with flow matching on
 frozen-VAE latents, conditioned on Qwen3-0.6B captions, with REPA alignment to DINOv2 features.
 All commands run from the repo root.
 
