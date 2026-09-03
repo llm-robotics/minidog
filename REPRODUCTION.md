@@ -53,9 +53,20 @@ Reference: 11.5 without REPA vs 9.4 with (gain 2.1). Ours: 11.54 vs 8.56 (gain 3
 flow-matching loss is the same in both runs at every epoch (0.88 at epoch 100); REPA changes what
 is learned, not how well the denoising objective is fit.
 
-## CFG sweep on the two epoch-200 checkpoints (`minidog.offline_eval`)
+## CFG sweep on the epoch-200 checkpoints (`minidog.offline_eval`, step 20,200, EMA weights)
 
-Pending. Scales 6.0 (the training-time eval setting), 1.5, 2.0, 3.0, 4.0.
+| CFG scale | pretrain FID | pretrain IS | no-REPA FID | no-REPA IS |
+|---|---|---|---|---|
+| 1.5 | 17.36 | 16.25 | pending | |
+| 2.0 | 12.73 | 17.09 | pending | |
+| 3.0 | 9.48 | 17.61 | pending | |
+| 4.0 | **8.44** | 17.77 | pending | |
+| 6.0 (training-time eval setting) | 8.48 | 17.76 | pending | |
+
+The shipped `pretrain/ep-0000200.pt` scores 8.48 at the config's CFG 6.0, vs 8.56 measured at
+step 20,000 during training: the 200-step gap between last eval and final checkpoint is immaterial.
+FID falls monotonically from CFG 1.5 to 4.0 and is flat between 4.0 and 6.0, so the config's 6.0
+is not costing FID; the usual "low CFG minimizes FID" pattern does not hold for this small model.
 
 ## Not reproducible from the shipped data
 
