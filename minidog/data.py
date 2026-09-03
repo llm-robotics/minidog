@@ -13,8 +13,6 @@ from torchvision import transforms
 from typing import Optional, Union
 
 
-DOGS_NUM_SAMPLES = 26000
-
 
 def _filter_valid_samples(sample):
     return sample[0] is not None
@@ -48,6 +46,7 @@ class DogsWebDataset:
 
         self._shard_urls = [str(f) for f in tar_files]
         self._num_shards = len(self._shard_urls)
+        self._num_samples = sum(_shard_sample_counts(self.data_dir, tar_files, IMAGE_SUFFIXES).values())
 
         self.transform = transform or transforms.Compose([
             transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
@@ -57,7 +56,7 @@ class DogsWebDataset:
 
     @property
     def estimated_size(self) -> int:
-        return DOGS_NUM_SAMPLES
+        return self._num_samples
 
     @property
     def num_shards(self) -> int:
@@ -91,18 +90,20 @@ class DogsWebDataset:
         )
 
 
-def _count_tar_samples(path: Path) -> int:
-    """Count samples in a shard by counting '.latent.npy' members (one per sample).
+IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 
-    Reads only tar headers, not member contents, but scanning still costs ~1-3s per
-    GB of shard on network storage, so callers should cache the result (see
-    _shard_sample_counts below) rather than call this on every dataset load.
+
+def _count_tar_samples(path: Path, suffixes) -> int:
+    """Count samples in a shard as the number of members ending in one of `suffixes`.
+
+    Reads only tar headers, but scanning still costs ~1-3s per GB of shard, so callers
+    cache the result (see _shard_sample_counts) rather than call this on every load.
     """
     with tarfile.open(path) as tf:
-        return sum(1 for name in tf.getnames() if name.endswith(".latent.npy"))
+        return sum(1 for name in tf.getnames() if name.endswith(suffixes))
 
 
-def _shard_sample_counts(data_dir: Path, tar_files: list) -> dict:
+def _shard_sample_counts(data_dir: Path, tar_files: list, suffixes=(".latent.npy",)) -> dict:
     """Get exact sample counts per shard, cached in a sidecar file keyed by (mtime, size).
 
     A full tar scan takes seconds to minutes depending on shard size, and every
@@ -126,7 +127,7 @@ def _shard_sample_counts(data_dir: Path, tar_files: list) -> dict:
         if entry and entry.get("mtime") == stat.st_mtime and entry.get("size") == stat.st_size:
             counts[f.name] = entry["count"]
             continue
-        count = _count_tar_samples(f)
+        count = _count_tar_samples(f, suffixes)
         counts[f.name] = count
         cache[f.name] = {"mtime": stat.st_mtime, "size": stat.st_size, "count": count}
         dirty = True

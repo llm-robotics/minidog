@@ -11,15 +11,15 @@ and writes new WDS shards where each sample contains:
 Single-GPU usage:
     uv run python -m minidog.precompute_latents \
         --config configs/pretrain.yaml \
-        --input-dir /data3/rey/dogs_recaptioned_wds \
-        --output-dir /data3/rey/dogs_recaptioned_latents_wds \
+        --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
+        --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae \
         --batch-size 16
 
 Multi-GPU usage (recommended, splits shards across GPUs):
     uv run torchrun --nproc_per_node=8 -m minidog.precompute_latents \
         --config configs/pretrain.yaml \
-        --input-dir /data3/rey/dogs_recaptioned_wds \
-        --output-dir /data3/rey/dogs_recaptioned_latents_wds \
+        --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
+        --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae \
         --batch-size 16
 """
 
@@ -42,6 +42,7 @@ from tqdm import tqdm
 from minidog.config import Stage2Config
 from minidog.dinov2 import DINOv2Encoder
 from minidog.transport import setup_text_encoder
+from minidog.utils.dist_utils import main_process_first
 from minidog.utils.model_utils import instantiate_from_config
 
 
@@ -111,7 +112,8 @@ def main():
     if cfg.repa.use_repa:
         if rank == 0:
             print("Loading DINOv2 ViT-B/14...")
-        repa_encoder = DINOv2Encoder(cfg.training.image_size).to(device)
+        with main_process_first(rank):  # rank 0 downloads the torch.hub repo + weights; others reuse the cache
+            repa_encoder = DINOv2Encoder(cfg.training.image_size).to(device)
 
     # ------------------------------------------------------------------ #
     # Image transform

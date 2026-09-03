@@ -40,7 +40,7 @@ guidance:
 dataset:
   target: 'dogs'
   type: 'latents'
-  data_dir: "/data3/rey/dogs_recaptioned_latents_invae_wds"
+  data_dir: "data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae"
   condition_type: "text"
   shuffle_buffer: 5000
   seed: 42
@@ -78,9 +78,9 @@ eval:
     dogs:
       target: 'dogs'
       type: 'wds'
-      data_dir: '/data3/rey/dogs_recaptioned_wds'
+      data_dir: 'data/dog-t2i-diffusion-data/dogs_recaptioned_wds'
       condition_type: 'text'
-      reference_npz: '/data3/rey/dogs_recaptioned_wds/dogs_recaptioned_all_stats.npz'
+      reference_npz: 'data/dog-t2i-diffusion-data/dogs_recaptioned_stats.npz'
 
 repa:
   use_repa: true

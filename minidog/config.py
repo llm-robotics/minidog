@@ -30,17 +30,11 @@ class MiscConfig:
 @dataclass
 class OptimizerConfig:
     """Optimizer configuration (shared across all training)."""
-    type: str = "adamw"  # "adamw", "gmuon"
+    type: str = "adamw"
     lr: float = 2.0e-4
     betas: Tuple[float, float] = (0.9, 0.95)
     weight_decay: float = 0.0
     eps: float = 1e-8
-    # GMuon-specific
-    momentum: float = 0.95
-    nesterov: bool = True
-    adamw_lr: Optional[float] = None
-    ns_use_kernels: bool = False
-    ns_coefficients_preset: str = "POLAR_EXPRESS_COEFFICIENTS"
 
 
 @dataclass

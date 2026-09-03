@@ -4,7 +4,7 @@ Point it at a folder of WebDataset shards of real images (the same format the tr
 uses) and pass the resulting .npz as eval.datasets.dogs.reference_npz in a config.
 
 Usage:
-    uv run python -m minidog.fid_stats --data-dir data/dogs_recaptioned_wds --output data/dogs_recaptioned_stats.npz
+    uv run python -m minidog.fid_stats --data-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds --output data/dog-t2i-diffusion-data/dogs_recaptioned_stats.npz
 """
 import argparse
 from pathlib import Path
