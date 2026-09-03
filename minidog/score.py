@@ -4,7 +4,7 @@ Both folders must come from `python -m minidog.generate --group-by-breed` on the
 (layout: <dir>/<breed>/<name>.png + <name>.txt), e.g. a pretraining and an SFT checkpoint.
 
   PickScore  (always)      pairwise preference probability per caption -> win rate of B over A
-  HPSv2      (optional)    per-image score, if the `hpsv2` package is installed (`uv pip install hpsv2`)
+  HPSv2                    per-image score (the hpsv2 wheel lacks its BPE vocab; it is fetched on first use)
 
 Usage:
     uv run python -m minidog.score --a results/samples/pretrain --b results/samples/sft
@@ -43,11 +43,25 @@ def pickscore(pairs, device):
     return out
 
 
+def _ensure_hpsv2_vocab():
+    """The hpsv2 1.2.0 wheel omits the CLIP BPE vocab its tokenizer needs at import time; fetch it once."""
+    import importlib.util
+    import urllib.request
+    spec = importlib.util.find_spec("hpsv2")
+    if spec is None or not spec.submodule_search_locations:
+        return
+    vocab = Path(list(spec.submodule_search_locations)[0]) / "src" / "open_clip" / "bpe_simple_vocab_16e6.txt.gz"
+    if not vocab.exists():
+        print(f"Downloading CLIP BPE vocab for hpsv2 -> {vocab}")
+        urllib.request.urlretrieve("https://github.com/openai/CLIP/raw/main/clip/bpe_simple_vocab_16e6.txt.gz", vocab)
+
+
 @torch.no_grad()
 def hpsv2_scores(pairs, device):
     """Per-image HPSv2 scores for both folders; returns None if hpsv2 is not installed."""
     try:
         import huggingface_hub
+        _ensure_hpsv2_vocab()
         from hpsv2.src.open_clip import create_model_and_transforms, get_tokenizer
         from hpsv2.utils import hps_version_map
     except ImportError:
@@ -100,7 +114,7 @@ def main():
 
     hps = hpsv2_scores(pairs, device)
     if hps is None:
-        print("\nHPSv2 skipped: `uv pip install hpsv2` to enable it.")
+        print("\nHPSv2 skipped: the hpsv2 package is not importable.")
     else:
         results["hpsv2"] = hps
         summarize("HPSv2 mean score", hps, mean, label_a, label_b)

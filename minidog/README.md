@@ -80,7 +80,7 @@ recaptions that are not in the HF dataset.
 ## Generate and score
 
 Sample the 500 evaluation captions from two checkpoints, then compare the two folders with
-learned human-preference models (PickScore always; HPSv2 if `uv pip install hpsv2`):
+two learned human-preference models, PickScore and HPSv2:
 
 ```bash
 for RUN in pretrain sft; do
@@ -94,4 +94,4 @@ uv run python -m minidog.score --a results/samples/pretrain --b results/samples/
 ```
 
 `score` prints per-breed and overall PickScore preference and win rate of B over A, and HPSv2
-means when available. FID and Inception Score are already logged during training.
+mean scores. FID and Inception Score are already logged during training.
