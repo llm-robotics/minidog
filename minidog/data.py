@@ -1,21 +1,44 @@
 """Dog-breed WebDataset loaders: raw image shards and precomputed-latent shards."""
 import io
+import itertools
 import json
 import numpy as np
+import random
 import tarfile
 import torch
 import webdataset as wds
 from dataclasses import dataclass, field
 from pathlib import Path
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import IterableDataset
 from torchvision import transforms
-from typing import Optional, Union
+from typing import Optional
 
+
+
+def _not_none(sample):
+    return sample is not None
 
 
 def _filter_valid_samples(sample):
     return sample[0] is not None
+
+
+class _ReshufflingShardList(IterableDataset):
+    """Shard list that reshuffles with seed + pass_index each time it is iterated.
+
+    Used with an infinite (`.repeat()`) pipeline so that loader workers and the shuffle buffer
+    survive across epochs while every epoch still sees a fresh shard order.
+    """
+
+    def __init__(self, urls, seed: int):
+        self.urls, self.seed, self.passes = list(urls), seed, 0
+
+    def __iter__(self):
+        urls = list(self.urls)
+        random.Random(self.seed + self.passes).shuffle(urls)
+        self.passes += 1
+        for url in urls:
+            yield dict(url=url)
 
 
 class DogsWebDataset:
@@ -73,17 +96,22 @@ class DogsWebDataset:
 
         return image, caption
 
-    def create_pipeline(self, epoch: int = 0, shuffle: bool = True) -> wds.WebDataset:
-        pipeline = wds.WebDataset(
-            self._shard_urls,
-            nodesplitter=wds.split_by_node if shuffle else None,
-            shardshuffle=self._num_shards if shuffle else False,
-            seed=self.seed + epoch,
-        )
+    def create_pipeline(self, shuffle: bool = True):
+        """Training (shuffle=True): infinite stream, shards reshuffled every pass, sample shuffle buffer.
+        Eval (shuffle=False): one ordered pass over all shards."""
         if shuffle:
-            pipeline = pipeline.shuffle(self.shuffle_buffer, initial=self.shuffle_buffer // 2)
+            return wds.DataPipeline(
+                _ReshufflingShardList(self._shard_urls, self.seed),
+                wds.split_by_node,
+                wds.split_by_worker,
+                wds.tarfile_to_samples(handler=wds.ignore_and_continue),
+                wds.shuffle(self.shuffle_buffer, initial=self.shuffle_buffer // 2),
+                wds.decode("pil", handler=wds.ignore_and_continue),
+                wds.map(self._decode_sample, handler=wds.ignore_and_continue),
+                wds.select(_filter_valid_samples),
+            ).repeat()
         return (
-            pipeline
+            wds.WebDataset(self._shard_urls, nodesplitter=None, shardshuffle=False)
             .decode("pil", handler=wds.ignore_and_continue)
             .map(self._decode_sample, handler=wds.ignore_and_continue)
             .select(_filter_valid_samples)
@@ -188,71 +216,51 @@ class DogsLatentsWebDataset:
         except Exception:
             return None
 
-    def create_pipeline(self, epoch: int = 0, shuffle: bool = True) -> wds.WebDataset:
-        pipeline = wds.WebDataset(
-            self._shard_urls,
-            nodesplitter=wds.split_by_node if shuffle else None,
-            shardshuffle=self._num_shards if shuffle else False,
-            seed=self.seed + epoch,
-        )
+    def create_pipeline(self, shuffle: bool = True):
+        """Training (shuffle=True): infinite stream, shards reshuffled every pass, sample shuffle buffer.
+        Eval (shuffle=False): one ordered pass over all shards."""
         if shuffle:
-            pipeline = pipeline.shuffle(self.shuffle_buffer, initial=self.shuffle_buffer // 2)
+            return wds.DataPipeline(
+                _ReshufflingShardList(self._shard_urls, self.seed),
+                wds.split_by_node,
+                wds.split_by_worker,
+                wds.tarfile_to_samples(handler=wds.ignore_and_continue),
+                wds.shuffle(self.shuffle_buffer, initial=self.shuffle_buffer // 2),
+                wds.map(self._decode_sample, handler=wds.ignore_and_continue),
+                wds.select(_not_none),
+            ).repeat()
         return (
-            pipeline
+            wds.WebDataset(self._shard_urls, nodesplitter=None, shardshuffle=False)
             .map(self._decode_sample, handler=wds.ignore_and_continue)
-            .select(lambda x: x is not None)
+            .select(_not_none)
         )
 
 
 @dataclass
 class DataloaderResult:
-    """
-    Unified result from prepare_unified_dataloader.
-    Provides consistent interface for map-style and iterable datasets.
-    """
-    loader: Union[DataLoader, wds.WebLoader]
-    sampler: Optional[DistributedSampler]
+    """Loader plus the bookkeeping the training loop needs (steps per epoch, epoch hooks)."""
+    loader: wds.WebLoader
     dataset_size: int
-    is_iterable: bool = False
-    _wds_pipeline: Optional[object] = field(default=None, repr=False)
+    infinite: bool = False          # training loaders stream forever; each "epoch" is `len(self)` batches
     _batch_size: int = 1
-    _num_workers: int = 4
     _world_size: int = 1
     virtual_epoch_steps: Optional[int] = None
+    _iterator: Optional[object] = field(default=None, repr=False)
 
     def set_epoch(self, epoch: int):
-        """Set epoch for shuffling. Works for both dataset types.
-
-        For map-style: calls sampler.set_epoch()
-        For WebDataset: recreates pipeline with new seed (uses virtual_epoch_steps if set)
-        """
-        if self.sampler is not None:
-            self.sampler.set_epoch(epoch)
-        elif self._wds_pipeline is not None:
-            self._recreate_wds_loader(epoch)
-
-    def _recreate_wds_loader(self, epoch: int):
-        """Recreate WebDataset loader for new epoch."""
-        dataset = self._wds_pipeline.create_pipeline(epoch=epoch)
-        steps = self.virtual_epoch_steps or (self.dataset_size // (self._batch_size * self._world_size))
-        loader = wds.WebLoader(
-            dataset,
-            batch_size=self._batch_size,
-            num_workers=self._num_workers,
-            pin_memory=True,
-        )
-        self.loader = loader.with_epoch(steps)
+        """Kept for API symmetry; the infinite stream reshuffles shards itself on every pass."""
 
     def __len__(self) -> int:
-        """Return number of batches per epoch."""
         if self.virtual_epoch_steps is not None:
             return self.virtual_epoch_steps
-        if self.is_iterable:
-            return self.dataset_size // (self._batch_size * self._world_size)
-        return len(self.loader)
+        return self.dataset_size // (self._batch_size * self._world_size)
 
     def __iter__(self):
-        return iter(self.loader)
+        if not self.infinite:
+            return iter(self.loader)
+        if self._iterator is None:  # created once: loader workers and the shuffle buffer stay warm across epochs
+            self._iterator = iter(self.loader)
+        return itertools.islice(self._iterator, len(self))
 
 
 def prepare_unified_dataloader(
@@ -331,9 +339,8 @@ def _prepare_dogs_loader(
         seed=seed,
     )
 
-    dataset = wds_pipeline.create_pipeline(epoch=0, shuffle=shuffle)
+    dataset = wds_pipeline.create_pipeline(shuffle=shuffle)
     total_samples = wds_pipeline.estimated_size
-    steps = total_samples // (batch_size * world_size)
 
     # For eval (shuffle=False) skip node splitting so all shards are visible on each rank
     actual_num_workers = num_workers if shuffle else 0
@@ -344,17 +351,11 @@ def _prepare_dogs_loader(
         pin_memory=True,
         multiprocessing_context="spawn" if actual_num_workers > 0 else None,
     )
-    if shuffle:
-        loader = loader.with_epoch(steps)
-
     return DataloaderResult(
         loader=loader,
-        sampler=None,
         dataset_size=total_samples,
-        is_iterable=True,
-        _wds_pipeline=wds_pipeline,
+        infinite=shuffle,
         _batch_size=batch_size,
-        _num_workers=num_workers,
         _world_size=world_size,
     )
 
@@ -378,9 +379,8 @@ def _prepare_dogs_latents_loader(
         seed=seed,
     )
 
-    dataset = wds_pipeline.create_pipeline(epoch=0, shuffle=shuffle)
+    dataset = wds_pipeline.create_pipeline(shuffle=shuffle)
     total_samples = wds_pipeline.estimated_size
-    steps = total_samples // (batch_size * world_size)
 
     actual_num_workers = num_workers if shuffle else 0
     loader = wds.WebLoader(
@@ -390,16 +390,10 @@ def _prepare_dogs_latents_loader(
         pin_memory=True,
         multiprocessing_context="spawn" if actual_num_workers > 0 else None,
     )
-    if shuffle:
-        loader = loader.with_epoch(steps)
-
     return DataloaderResult(
         loader=loader,
-        sampler=None,
         dataset_size=total_samples,
-        is_iterable=True,
-        _wds_pipeline=wds_pipeline,
+        infinite=shuffle,
         _batch_size=batch_size,
-        _num_workers=num_workers,
         _world_size=world_size,
     )
