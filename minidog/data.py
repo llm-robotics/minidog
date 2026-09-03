@@ -1,0 +1,404 @@
+"""Dog-breed WebDataset loaders: raw image shards and precomputed-latent shards."""
+import io
+import json
+import numpy as np
+import tarfile
+import torch
+import webdataset as wds
+from dataclasses import dataclass, field
+from pathlib import Path
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from torchvision import transforms
+from typing import Optional, Union
+
+
+DOGS_NUM_SAMPLES = 26000
+
+
+def _filter_valid_samples(sample):
+    return sample[0] is not None
+
+
+class DogsWebDataset:
+    """
+    WebDataset wrapper for the dog breed dataset.
+
+    Expects tar shards where each
+    sample contains a .jpg image and a .txt caption.
+    Returns (image_tensor, caption_string) pairs.
+    """
+
+    def __init__(
+        self,
+        data_dir: str,
+        transform: Optional[transforms.Compose] = None,
+        image_size: int = 256,
+        shuffle_buffer: int = 5000,
+        seed: int = 42,
+    ):
+        self.data_dir = Path(data_dir)
+        self.image_size = image_size
+        self.shuffle_buffer = shuffle_buffer
+        self.seed = seed
+
+        tar_files = sorted(self.data_dir.glob("*.tar"))
+        if not tar_files:
+            raise ValueError(f"No tar shards found in {data_dir}.")
+
+        self._shard_urls = [str(f) for f in tar_files]
+        self._num_shards = len(self._shard_urls)
+
+        self.transform = transform or transforms.Compose([
+            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+        ])
+
+    @property
+    def estimated_size(self) -> int:
+        return DOGS_NUM_SAMPLES
+
+    @property
+    def num_shards(self) -> int:
+        return self._num_shards
+
+    def _decode_sample(self, sample):
+        image = sample.get("jpg") or sample.get("png") or sample.get("jpeg") or sample.get("webp")
+
+        caption_raw = sample.get("txt", b"")
+        caption = caption_raw.decode("utf-8").strip() if isinstance(caption_raw, bytes) else str(caption_raw).strip()
+
+        if image is not None:
+            image = self.transform(image)
+
+        return image, caption
+
+    def create_pipeline(self, epoch: int = 0, shuffle: bool = True) -> wds.WebDataset:
+        pipeline = wds.WebDataset(
+            self._shard_urls,
+            nodesplitter=wds.split_by_node if shuffle else None,
+            shardshuffle=self._num_shards if shuffle else False,
+            seed=self.seed + epoch,
+        )
+        if shuffle:
+            pipeline = pipeline.shuffle(self.shuffle_buffer, initial=self.shuffle_buffer // 2)
+        return (
+            pipeline
+            .decode("pil", handler=wds.ignore_and_continue)
+            .map(self._decode_sample, handler=wds.ignore_and_continue)
+            .select(_filter_valid_samples)
+        )
+
+
+def _count_tar_samples(path: Path) -> int:
+    """Count samples in a shard by counting '.latent.npy' members (one per sample).
+
+    Reads only tar headers, not member contents, but scanning still costs ~1-3s per
+    GB of shard on network storage, so callers should cache the result (see
+    _shard_sample_counts below) rather than call this on every dataset load.
+    """
+    with tarfile.open(path) as tf:
+        return sum(1 for name in tf.getnames() if name.endswith(".latent.npy"))
+
+
+def _shard_sample_counts(data_dir: Path, tar_files: list) -> dict:
+    """Get exact sample counts per shard, cached in a sidecar file keyed by (mtime, size).
+
+    A full tar scan takes seconds to minutes depending on shard size, and every
+    torchrun rank instantiates its own DogsLatentsWebDataset, so without caching this
+    cost is paid repeatedly on every training launch. The cache is invalidated per-file
+    if its mtime/size changes (e.g. shards regenerated).
+    """
+    cache_path = data_dir / ".shard_sample_counts.json"
+    cache = {}
+    if cache_path.exists():
+        try:
+            cache = json.loads(cache_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            cache = {}
+
+    counts = {}
+    dirty = False
+    for f in tar_files:
+        stat = f.stat()
+        entry = cache.get(f.name)
+        if entry and entry.get("mtime") == stat.st_mtime and entry.get("size") == stat.st_size:
+            counts[f.name] = entry["count"]
+            continue
+        count = _count_tar_samples(f)
+        counts[f.name] = count
+        cache[f.name] = {"mtime": stat.st_mtime, "size": stat.st_size, "count": count}
+        dirty = True
+
+    if dirty:
+        try:
+            cache_path.write_text(json.dumps(cache))
+        except OSError:
+            pass  # e.g. read-only data dir; caching is an optimization, not required for correctness
+
+    return counts
+
+
+class DogsLatentsWebDataset:
+    """
+    Reads pre-computed latent shards produced by python -m minidog.precompute_latents.
+
+    Each tar sample contains:
+        latent.npy      [C, H, W]              float16 → float32
+        tokens.npy      [seq_len, dim]          float16 → float32
+        attn_mask.npy   [seq_len]               bool
+        dinov2.npy      [num_patches, dim]      float16 → float32 (present when RePA was used)
+
+    Returns (latent, tokens, attn_mask, dinov2) tuples where dinov2 is a zero tensor
+    (shape [1]) when not present, so WebLoader can collate homogeneously.
+    """
+
+    def __init__(self, data_dir: str, shuffle_buffer: int = 5000, seed: int = 42):
+        self.data_dir = Path(data_dir)
+        self.shuffle_buffer = shuffle_buffer
+        self.seed = seed
+
+        tar_files = sorted(self.data_dir.glob("*.tar"))
+        if not tar_files:
+            raise ValueError(f"No tar shards found in {data_dir}. Run python -m minidog.precompute_latents first.")
+        self._shard_urls = [str(f) for f in tar_files]
+        self._num_shards = len(self._shard_urls)
+        self._num_samples = sum(_shard_sample_counts(self.data_dir, tar_files).values())
+
+    @property
+    def estimated_size(self) -> int:
+        return self._num_samples
+
+    @property
+    def num_shards(self) -> int:
+        return self._num_shards
+
+    def _decode_sample(self, sample):
+        try:
+            latent = torch.from_numpy(np.load(io.BytesIO(sample["latent.npy"])).astype(np.float32))
+            tokens = torch.from_numpy(np.load(io.BytesIO(sample["tokens.npy"])).astype(np.float32))
+            attn_mask = torch.from_numpy(np.load(io.BytesIO(sample["attn_mask.npy"])))
+            if "dinov2.npy" in sample:
+                dinov2 = torch.from_numpy(np.load(io.BytesIO(sample["dinov2.npy"])).astype(np.float32))
+            else:
+                dinov2 = torch.zeros(1)
+            return latent, tokens, attn_mask, dinov2
+        except Exception:
+            return None
+
+    def create_pipeline(self, epoch: int = 0, shuffle: bool = True) -> wds.WebDataset:
+        pipeline = wds.WebDataset(
+            self._shard_urls,
+            nodesplitter=wds.split_by_node if shuffle else None,
+            shardshuffle=self._num_shards if shuffle else False,
+            seed=self.seed + epoch,
+        )
+        if shuffle:
+            pipeline = pipeline.shuffle(self.shuffle_buffer, initial=self.shuffle_buffer // 2)
+        return (
+            pipeline
+            .map(self._decode_sample, handler=wds.ignore_and_continue)
+            .select(lambda x: x is not None)
+        )
+
+
+@dataclass
+class DataloaderResult:
+    """
+    Unified result from prepare_unified_dataloader.
+    Provides consistent interface for map-style and iterable datasets.
+    """
+    loader: Union[DataLoader, wds.WebLoader]
+    sampler: Optional[DistributedSampler]
+    dataset_size: int
+    is_iterable: bool = False
+    _wds_pipeline: Optional[object] = field(default=None, repr=False)
+    _batch_size: int = 1
+    _num_workers: int = 4
+    _world_size: int = 1
+    virtual_epoch_steps: Optional[int] = None
+
+    def set_epoch(self, epoch: int):
+        """Set epoch for shuffling. Works for both dataset types.
+
+        For map-style: calls sampler.set_epoch()
+        For WebDataset: recreates pipeline with new seed (uses virtual_epoch_steps if set)
+        """
+        if self.sampler is not None:
+            self.sampler.set_epoch(epoch)
+        elif self._wds_pipeline is not None:
+            self._recreate_wds_loader(epoch)
+
+    def _recreate_wds_loader(self, epoch: int):
+        """Recreate WebDataset loader for new epoch."""
+        dataset = self._wds_pipeline.create_pipeline(epoch=epoch)
+        steps = self.virtual_epoch_steps or (self.dataset_size // (self._batch_size * self._world_size))
+        loader = wds.WebLoader(
+            dataset,
+            batch_size=self._batch_size,
+            num_workers=self._num_workers,
+            pin_memory=True,
+        )
+        self.loader = loader.with_epoch(steps)
+
+    def __len__(self) -> int:
+        """Return number of batches per epoch."""
+        if self.virtual_epoch_steps is not None:
+            return self.virtual_epoch_steps
+        if self.is_iterable:
+            return self.dataset_size // (self._batch_size * self._world_size)
+        return len(self.loader)
+
+    def __iter__(self):
+        return iter(self.loader)
+
+
+def prepare_unified_dataloader(
+    config: dict,
+    image_size: int,
+    batch_size: int,
+    num_workers: int,
+    rank: int,
+    world_size: int,
+    transform: Optional[transforms.Compose] = None,
+    condition_type: str = "text",
+    shuffle: bool = True,
+    virtual_epoch_steps: Optional[int] = None,
+) -> DataloaderResult:
+    """
+    Dataloader factory for the dog-breed WebDataset shards.
+
+    Args:
+        config: Dataset configuration dict with structure:
+            {
+                'target': 'dogs',
+                'type': 'wds' | 'latents',   # raw image shards or precomputed latents
+                'data_dir': str,
+                'shuffle_buffer': int,
+                'seed': int,
+            }
+        image_size: Target image resolution (ignored for precomputed latents)
+        batch_size: Per-GPU batch size
+        num_workers: Number of dataloader workers
+        rank: Distributed training rank (unused; WebDataset splits shards by node)
+        world_size: Total number of GPUs
+        transform: Optional custom transform (raw image shards only)
+        condition_type: Kept for interface compatibility; the dog data is text-conditioned
+        shuffle: Whether to shuffle data (False for eval)
+        virtual_epoch_steps: Optional fixed number of steps per epoch
+
+    Returns:
+        DataloaderResult with unified interface
+    """
+    target = config.get("target", "dogs")
+    if target != "dogs":
+        raise ValueError(f"Unsupported dataset target {target!r}; MiniDog only supports 'dogs'.")
+
+    if config.get("type", "wds") == "latents":
+        result = _prepare_dogs_latents_loader(
+            config, batch_size, num_workers, world_size, shuffle
+        )
+    else:
+        result = _prepare_dogs_loader(
+            config, image_size, batch_size, num_workers, world_size, transform, shuffle
+        )
+    result.virtual_epoch_steps = virtual_epoch_steps
+    return result
+
+
+def _prepare_dogs_loader(
+    config: dict,
+    image_size: int,
+    batch_size: int,
+    num_workers: int,
+    world_size: int,
+    transform: Optional[transforms.Compose],
+    shuffle: bool = True,
+) -> DataloaderResult:
+    """Prepare Dogs WebDataset loader."""
+
+    data_dir = config.get("data_dir", "./data/dogs_wds")
+    shuffle_buffer = config.get("shuffle_buffer", 5000)
+    seed = config.get("seed", 42)
+
+    wds_pipeline = DogsWebDataset(
+        data_dir=data_dir,
+        transform=transform,
+        image_size=image_size,
+        shuffle_buffer=shuffle_buffer,
+        seed=seed,
+    )
+
+    dataset = wds_pipeline.create_pipeline(epoch=0, shuffle=shuffle)
+    total_samples = wds_pipeline.estimated_size
+    steps = total_samples // (batch_size * world_size)
+
+    # For eval (shuffle=False) skip node splitting so all shards are visible on each rank
+    actual_num_workers = num_workers if shuffle else 0
+    loader = wds.WebLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=actual_num_workers,
+        pin_memory=True,
+        multiprocessing_context="spawn" if actual_num_workers > 0 else None,
+    )
+    if shuffle:
+        loader = loader.with_epoch(steps)
+
+    return DataloaderResult(
+        loader=loader,
+        sampler=None,
+        dataset_size=total_samples,
+        is_iterable=True,
+        _wds_pipeline=wds_pipeline,
+        _batch_size=batch_size,
+        _num_workers=num_workers,
+        _world_size=world_size,
+    )
+
+
+def _prepare_dogs_latents_loader(
+    config: dict,
+    batch_size: int,
+    num_workers: int,
+    world_size: int,
+    shuffle: bool = True,
+) -> DataloaderResult:
+    """Prepare Dogs pre-computed latents WebDataset loader."""
+
+    data_dir = config.get("data_dir", "./data/dogs_latents_wds")
+    shuffle_buffer = config.get("shuffle_buffer", 5000)
+    seed = config.get("seed", 42)
+
+    wds_pipeline = DogsLatentsWebDataset(
+        data_dir=data_dir,
+        shuffle_buffer=shuffle_buffer,
+        seed=seed,
+    )
+
+    dataset = wds_pipeline.create_pipeline(epoch=0, shuffle=shuffle)
+    total_samples = wds_pipeline.estimated_size
+    steps = total_samples // (batch_size * world_size)
+
+    actual_num_workers = num_workers if shuffle else 0
+    loader = wds.WebLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=actual_num_workers,
+        pin_memory=True,
+        multiprocessing_context="spawn" if actual_num_workers > 0 else None,
+    )
+    if shuffle:
+        loader = loader.with_epoch(steps)
+
+    return DataloaderResult(
+        loader=loader,
+        sampler=None,
+        dataset_size=total_samples,
+        is_iterable=True,
+        _wds_pipeline=wds_pipeline,
+        _batch_size=batch_size,
+        _num_workers=num_workers,
+        _world_size=world_size,
+    )

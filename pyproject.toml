@@ -11,7 +11,6 @@ dependencies = [
   "einops==0.8.1",
   "numpy==2.2.6",
   "omegaconf==2.3.0",
-  "openai>=1.0.0",
   "opencv-python==4.13.0.92",
   "pandas==2.3.3",
   "pillow==12.0.0",
@@ -31,10 +30,6 @@ dependencies = [
   "transformers==4.57.1",
   "wandb==0.23.1",
   "webdataset==1.0.2",
-  "gram-newton-schulz",
-  "dpg-evaluator",
-  "geneval-evaluator",
-  "t2v-metrics",
 ]
 
 [dependency-groups]
@@ -54,10 +49,6 @@ environments = [
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
-gram-newton-schulz = { git = "https://github.com/nanovisionx/gmuon.git", branch = "main" }
-dpg-evaluator     = { git = "https://github.com/nanovisionx/nanogen-evals.git", subdirectory = "dpgbench",     branch = "main" }
-geneval-evaluator = { git = "https://github.com/nanovisionx/nanogen-evals.git", subdirectory = "geneval",      branch = "main" }
-t2v-metrics       = { git = "https://github.com/nanovisionx/nanogen-evals.git", subdirectory = "t2v_metrics",  branch = "main" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
