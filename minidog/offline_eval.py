@@ -43,9 +43,11 @@ def main():
 
     rae = instantiate_from_config(config.stage_1).to(device).eval()
     text_encoder = setup_text_encoder(config, rank, device)
+    state = torch.load(args.checkpoint, map_location="cpu")
+    if config.repa.use_repa:  # train.py sets z_dim from the DINOv2 encoder; here read it off the saved projector
+        config.repa.z_dim = state[args.weights]["repa_projector.weight"].shape[0]
     config.prepare_model_params()
     model = instantiate_from_config(config.stage_2).to(device).eval()
-    state = torch.load(args.checkpoint, map_location="cpu")
     model.load_state_dict(state[args.weights])
     if rank == 0:
         print(f"Loaded {args.weights} weights from {args.checkpoint} (epoch {state.get('epoch', '?')}, step {state.get('step', '?')})")
