@@ -19,10 +19,6 @@ dependencies = [
   "transformers==4.57.1",
   "wandb==0.23.1",
   "webdataset==1.0.2",
-]
-
-[dependency-groups]
-dev = [
   "jupyterlab>=4.0",
   "matplotlib==3.10.8",
 ]

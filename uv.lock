@@ -1078,6 +1078,8 @@ dependencies = [
     { name = "diffusers", marker = "sys_platform == 'linux'" },
     { name = "einops", marker = "sys_platform == 'linux'" },
     { name = "huggingface-hub", marker = "sys_platform == 'linux'" },
+    { name = "jupyterlab", marker = "sys_platform == 'linux'" },
+    { name = "matplotlib", marker = "sys_platform == 'linux'" },
     { name = "numpy", marker = "sys_platform == 'linux'" },
     { name = "omegaconf", marker = "sys_platform == 'linux'" },
     { name = "pillow", marker = "sys_platform == 'linux'" },
@@ -1092,17 +1094,13 @@ dependencies = [
     { name = "webdataset", marker = "sys_platform == 'linux'" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "jupyterlab", marker = "sys_platform == 'linux'" },
-    { name = "matplotlib", marker = "sys_platform == 'linux'" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "diffusers", specifier = "==0.36.0" },
     { name = "einops", specifier = "==0.8.1" },
     { name = "huggingface-hub", specifier = ">=0.34" },
+    { name = "jupyterlab", specifier = ">=4.0" },
+    { name = "matplotlib", specifier = "==3.10.8" },
     { name = "numpy", specifier = "==2.2.6" },
     { name = "omegaconf", specifier = "==2.3.0" },
     { name = "pillow", specifier = "==12.0.0" },
@@ -1115,12 +1113,6 @@ requires-dist = [
     { name = "transformers", specifier = "==4.57.1" },
     { name = "wandb", specifier = "==0.23.1" },
     { name = "webdataset", specifier = "==1.0.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "jupyterlab", specifier = ">=4.0" },
-    { name = "matplotlib", specifier = "==3.10.8" },
 ]
 
 [[package]]
