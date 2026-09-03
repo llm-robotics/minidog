@@ -104,14 +104,7 @@ def main():
     # eval setup
     eval_datasets, eval_dir = None, None
     if config.eval is not None:
-        eval_datasets = prepare_eval_datasets(
-            config.eval.datasets,
-            image_size=config.training.image_size,
-            batch_size=micro_batch_size,
-            num_workers=config.training.num_workers,
-            rank=rank,
-            world_size=world_size,
-        )
+        eval_datasets = prepare_eval_datasets(config.eval.datasets)
         eval_dir = config.eval.eval_dir
 
     #########################################################

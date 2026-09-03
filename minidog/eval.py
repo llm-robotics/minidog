@@ -3,10 +3,11 @@ import logging
 import numpy as np
 import scipy.linalg
 import sys
+import tarfile
 import torch
 import torch.distributed as dist
 from dataclasses import dataclass
-from minidog.data import prepare_unified_dataloader
+from pathlib import Path
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader, Dataset, Subset
 from torch_fidelity.feature_extractor_inceptionv3 import FeatureExtractorInceptionV3
@@ -69,19 +70,26 @@ class EvalDatasetInfo:
     reference_npz: str        # precomputed InceptionV3 mu/sigma of the real images
 
 
-def prepare_eval_datasets(eval_datasets_config: Dict[str, dict], image_size: int, batch_size: int,
-                          num_workers: int, rank: int, world_size: int) -> Dict[str, EvalDatasetInfo]:
-    """For each eval.datasets entry, read the raw shards once and keep only the captions."""
+def read_captions(shard_dir: str) -> list:
+    """Captions of every sample in a folder of jpg+txt WebDataset shards, read straight from the tars."""
+    captions = []
+    for shard in sorted(Path(shard_dir).glob("*.tar")):
+        with tarfile.open(shard) as tf:
+            for member in tf:
+                if member.name.endswith(".txt"):
+                    captions.append(tf.extractfile(member).read().decode("utf-8").strip())
+    return captions
+
+
+def prepare_eval_datasets(eval_datasets_config: Dict[str, dict]) -> Dict[str, EvalDatasetInfo]:
+    """For each eval.datasets entry, collect the captions (generation needs no images) and the FID reference."""
     eval_datasets = {}
     for ds_name, ds_cfg in eval_datasets_config.items():
         if 'reference_npz' not in ds_cfg:
             raise ValueError(f"eval.datasets.{ds_name} missing 'reference_npz', required for FID")
-        result = prepare_unified_dataloader(config=ds_cfg, image_size=image_size, batch_size=batch_size,
-                                            num_workers=num_workers, rank=rank, world_size=world_size, shuffle=False)
-        logger.info(f"Reading captions of eval dataset '{ds_name}'...")
-        captions = []
-        for _, conds in result.loader:  # images are discarded; only captions are needed for generation
-            captions.extend(conds)
+        captions = read_captions(ds_cfg['data_dir'])
+        if not captions:
+            raise ValueError(f"No captions found in shards under {ds_cfg['data_dir']}")
         eval_datasets[ds_name] = EvalDatasetInfo(dataset=ListDataset(captions), reference_npz=ds_cfg['reference_npz'])
         logger.info(f"Eval dataset loaded: {ds_name}, {len(captions)} captions")
     return eval_datasets
