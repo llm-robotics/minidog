@@ -40,14 +40,18 @@ Monotonically rising FID, as the tutorial reports. Wall time 34 min, almost all 
 
 Per-pair scores: `results/scores/pretrain_vs_sft.json`.
 
-## REPA ablation (`configs/ablations/e2e-invae-norepa-128tok.yaml`)
+## REPA ablation (`configs/ablations/e2e-invae-norepa-128tok.yaml`, same schedule, REPA off)
 
-| Step | FID (ours) | IS (ours) |
-|---|---|---|
-| 5,000 | 110.4 | 8.9 |
-| 20,000 | pending | pending |
+| Step | FID no-REPA (ours) | FID REPA (ours) | IS no-REPA (ours) |
+|---|---|---|---|
+| 5,000 | 110.4 | 89.8 | 8.9 |
+| 10,000 | 33.1 | 16.5 | 15.7 |
+| 15,000 | 16.0 | 10.5 | 17.2 |
+| 20,000 | **11.54** | **8.56** | 17.65 |
 
-Reference: 11.5 (vs 9.4 with REPA). Running.
+Reference: 11.5 without REPA vs 9.4 with (gain 2.1). Ours: 11.54 vs 8.56 (gain 3.0). The
+flow-matching loss is the same in both runs at every epoch (0.88 at epoch 100); REPA changes what
+is learned, not how well the denoising objective is fit.
 
 ## CFG sweep on the two epoch-200 checkpoints (`minidog.offline_eval`)
 
