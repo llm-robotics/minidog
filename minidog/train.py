@@ -2,11 +2,11 @@
 
 Usage:
     uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \\
-        --config configs/pretrain.yaml --precision bf16 --wandb
+        --config configs/pretrain.yaml --compile --wandb
     # SFT from a pretrained checkpoint:
     uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \\
         --config configs/sft.yaml --ckpt ckpts/<pretrain-run>/checkpoints/ep-0000200.pt \\
-        --init-weights-only --precision bf16 --wandb
+        --init-weights-only --compile --wandb
 """
 
 import argparse
@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train Stage-2 transport model on RAE latents.")
     parser.add_argument("--config", type=str, required=True, help="YAML config file.")
     parser.add_argument("--results-dir", type=str, default="ckpts")
-    parser.add_argument("--precision", type=str, choices=["fp32", "bf16"], default="fp32")
+    parser.add_argument("--precision", type=str, choices=["fp32", "bf16"], default="bf16")
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--ckpt", type=str, default=None)
     parser.add_argument("--init-weights-only", action="store_true",

@@ -45,13 +45,13 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
 export EXPERIMENT_NAME=pretrain
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
     --config configs/pretrain.yaml \
-    --precision bf16 --compile
+    --compile
 
 # fine-tune from the pretraining checkpoint
 export EXPERIMENT_NAME=sft
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
     --config configs/sft.yaml \
-    --precision bf16 --compile \
+    --compile \
     --ckpt ckpts/pretrain/checkpoints/ep-0000200.pt \
     --init-weights-only
 ```
@@ -75,7 +75,7 @@ To launch any of them, point `--config` at it and name the run after it:
 ```bash
 CONFIG=configs/ablations/e2e-invae-norepa-128tok.yaml
 export EXPERIMENT_NAME=$(basename $CONFIG .yaml)
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFIG --precision bf16 --compile
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFIG --compile
 ```
 
 The `e2e-vavae-*` configs read latents from `$DATA/dogs_recaptioned_latents_e2e-vavae`, so run
