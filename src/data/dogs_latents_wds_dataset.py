@@ -67,10 +67,9 @@ class DogsLatentsWebDataset:
         tokens.npy      [seq_len, dim]          float16 → float32
         attn_mask.npy   [seq_len]               bool
         dinov2.npy      [num_patches, dim]      float16 → float32 (present when RePA was used)
-        attn_target.npy [dit_grid_size**2]      float16 → float32 (present when attn_align was used)
 
-    Returns (latent, tokens, attn_mask, dinov2, attn_target) tuples where dinov2/attn_target
-    are zero tensors (shape [1]) when not present, so WebLoader can collate homogeneously.
+    Returns (latent, tokens, attn_mask, dinov2) tuples where dinov2 is a zero tensor
+    (shape [1]) when not present, so WebLoader can collate homogeneously.
     """
 
     def __init__(self, data_dir: str, shuffle_buffer: int = 5000, seed: int = 42):
@@ -102,11 +101,7 @@ class DogsLatentsWebDataset:
                 dinov2 = torch.from_numpy(np.load(io.BytesIO(sample["dinov2.npy"])).astype(np.float32))
             else:
                 dinov2 = torch.zeros(1)
-            if "attn_target.npy" in sample:
-                attn_target = torch.from_numpy(np.load(io.BytesIO(sample["attn_target.npy"])).astype(np.float32))
-            else:
-                attn_target = torch.zeros(1)
-            return latent, tokens, attn_mask, dinov2, attn_target
+            return latent, tokens, attn_mask, dinov2
         except Exception:
             return None
 

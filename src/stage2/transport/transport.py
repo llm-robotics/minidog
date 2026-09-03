@@ -21,26 +21,6 @@ def spatial_zscore(feat, alpha=1.0, eps=1e-6):
     return (feat - alpha * mean) / (std + eps)
 
 
-def attn_align_loss(pred, target, loss_type="kl", eps=1e-8):
-    """Per-sample loss between two pooled [B, N] image-token attention-mass vectors.
-
-    Neither vector need sum to 1 over N as-is (each is a per-token sum over a
-    different, unrelated key axis on each side) -- for "kl" both are renormalized
-    over N first so the comparison is "where does attention concentrate", not raw
-    magnitude. Returns a [B] tensor (unreduced), matching the loss_percep masking
-    convention (mask, don't .mean(), so callers can gate by timestep first).
-    """
-    if loss_type == "mse":
-        return F.mse_loss(pred, target, reduction="none").mean(dim=-1)
-    if loss_type == "cosine":
-        return 1 - F.cosine_similarity(pred, target, dim=-1, eps=eps)
-    if loss_type == "kl":
-        p = target / target.sum(dim=-1, keepdim=True).clamp_min(eps)
-        q = pred / pred.sum(dim=-1, keepdim=True).clamp_min(eps)
-        return F.kl_div(q.clamp_min(eps).log(), p, reduction="none").sum(dim=-1)
-    raise ValueError(f"Unknown attn_align_loss_type: {loss_type}")
-
-
 def get_time_sampler(time_dist_type: str):
     parts = time_dist_type.split("_")
     name = parts[0]
@@ -72,7 +52,7 @@ class Transport:
     #######################################################
     #               Forward Pass and Loss                 #
     #######################################################
-    def training_losses(self, model, x1, model_kwargs={}, model_kwargs_null={}, z_clean=None, repa_coeff=None, base_model_coeff=1.0, percep_loss=None, cfg_dropout_prob=0.1, ema_model=None, cls_clean=None, reg_coeff=None, attn_target=None, attn_align_coeff=None, attn_align_layer=None, attn_align_t_thresh=0.7, attn_align_loss_type="kl", repa_spatial_norm=False, repa_spatial_norm_alpha=1.0):
+    def training_losses(self, model, x1, model_kwargs={}, model_kwargs_null={}, z_clean=None, repa_coeff=None, base_model_coeff=1.0, percep_loss=None, cfg_dropout_prob=0.1, ema_model=None, cls_clean=None, reg_coeff=None, repa_spatial_norm=False, repa_spatial_norm_alpha=1.0):
         if repa_spatial_norm and z_clean is not None:
             z_clean = spatial_zscore(z_clean, alpha=repa_spatial_norm_alpha)
         model_kwargs, _ = apply_cfg_dropout(model_kwargs, model_kwargs_null, cfg_dropout_prob)
@@ -83,7 +63,6 @@ class Transport:
 
         enable_repa = z_clean is not None and repa_coeff is not None
         enable_reg = cls_clean is not None and reg_coeff is not None
-        enable_attn_align = attn_target is not None and attn_align_coeff is not None
         # Append cls noising using the same t and formula
         if enable_reg:
             cls_x0 = th.randn_like(cls_clean)
@@ -92,20 +71,8 @@ class Transport:
             model_kwargs = {**model_kwargs, "cls_t": cls_t}
 
         zt_pred = None
-        attn_pred = None
-        if enable_repa or enable_attn_align:
-            model_output = model(
-                xt, t,
-                return_intermediate=enable_repa,
-                return_attn_layer=attn_align_layer if enable_attn_align else None,
-                **model_kwargs,
-            )
-            if enable_repa and enable_attn_align:
-                model_output, zt_pred, attn_pred = model_output
-            elif enable_repa:
-                model_output, zt_pred = model_output
-            else:
-                model_output, attn_pred = model_output
+        if enable_repa:
+            model_output, zt_pred = model(xt, t, return_intermediate=True, **model_kwargs)
         else:
             model_output = model(xt, t, **model_kwargs)
 
@@ -135,14 +102,6 @@ class Transport:
         if enable_reg and cls_pred is not None:
             loss_reg = reg_coeff * F.mse_loss(self.convert_model_pred(cls_pred, cls_t, t), v_cls)
         terms['loss_reg'] = loss_reg
-
-        loss_attn_align = th.tensor(0.0, device=x1.device)
-        if enable_attn_align and attn_pred is not None:
-            # Only align once the latent is clean enough to have coherent spatial
-            # content to align against -- same idiom as loss_percep's t-mask below.
-            mask = t < attn_align_t_thresh
-            loss_attn_align = attn_align_coeff * attn_align_loss(attn_pred, attn_target, attn_align_loss_type) * mask
-        terms['loss_attn_align'] = loss_attn_align
 
         if percep_loss is not None:
             assert self.prediction == "x"

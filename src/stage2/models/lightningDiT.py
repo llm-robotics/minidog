@@ -13,35 +13,9 @@ class LightningDiTBlock(nn.Module):
         self.attn = NormAttention(hidden_size, num_heads)
         self.mlp = SwiGLUFFN(hidden_size, int(2/3 * hidden_size * mlp_ratio))
 
-    def forward(self, x, rope, attn_mask=None, return_weights=False):
-        attn_out = self.attn(self.norm1(x), rope=rope, attn_mask=attn_mask, return_weights=return_weights)
-        attn_weights = None
-        if return_weights:
-            attn_out, attn_weights = attn_out
-        x = x + attn_out
+    def forward(self, x, rope, attn_mask=None):
+        x = x + self.attn(self.norm1(x), rope=rope, attn_mask=attn_mask)
         x = x + self.mlp(self.norm2(x))
-        if return_weights:
-            return x, attn_weights
-        return x
-
-
-class ConvRepaProjector(nn.Module):
-    """iREPA (arxiv 2512.10794) projector: a same-size conv over the image-token spatial grid,
-    instead of a per-token MLP/Linear. Only valid on a pure image-token slice (no cls/register
-    token mixed in) since the grid reshape assumes every token is a spatial position.
-    """
-    def __init__(self, hidden_size, z_dim, grid_size, kernel_size=3):
-        super().__init__()
-        self.grid_size = grid_size
-        self.conv = nn.Conv2d(hidden_size, z_dim, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
-
-    def forward(self, x):
-        b, n, d = x.shape
-        h = w = self.grid_size
-        assert n == h * w, f"ConvRepaProjector expects a square image-token grid, got n={n} for grid_size={h}"
-        x = x.reshape(b, h, w, d).permute(0, 3, 1, 2)  # [B, N, D] -> [B, D, H, W]
-        x = self.conv(x)
-        x = x.permute(0, 2, 3, 1).reshape(b, n, -1)  # [B, z_dim, H, W] -> [B, N, z_dim]
         return x
 
 
@@ -187,16 +161,12 @@ class LightningDiT(nn.Module):
         attn_mask = (1.0 - attn_mask[:, None, None, :]) * torch.finfo(seq.dtype).min
         return attn_mask
 
-    def forward(self, x, t, return_intermediate=False, return_attn_layer=None, **condition_kwargs):
+    def forward(self, x, t, return_intermediate=False, **condition_kwargs):
         zt_intermediate = None
-        attn_intermediate = None
         x = self._build_sequence(x, t, condition_kwargs)
         attn_mask = self._build_attn_mask(x, condition_kwargs)
         s, n = int(self.enable_reg), self.x_embedder.num_patches
         for i, block in enumerate(self.blocks):
-            want_weights = return_attn_layer is not None and (i + 1) == return_attn_layer
-            if want_weights:
-                raise NotImplementedError("attention-align (return_attn_layer) is not supported in MiniDog.")
             x = block(x, self.rope, attn_mask)
             if return_intermediate and (i + 1) == self.repa_layer_depth:
                 zt_intermediate = self.repa_projector(x[:, :s + n, :])
@@ -209,10 +179,6 @@ class LightningDiT(nn.Module):
         if self.enable_reg:
             x = (x, cls_pred)
 
-        if return_intermediate and return_attn_layer is not None:
-            return x, zt_intermediate, attn_intermediate
         if return_intermediate:
             return x, zt_intermediate
-        if return_attn_layer is not None:
-            return x, attn_intermediate
         return x

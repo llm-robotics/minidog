@@ -131,16 +131,6 @@ def main():
         config.repa.z_dim = repa_target_encoder.embed_dim
         logger.info(f"REPA target encoder: {config.repa.target_encoder}, embed_dim={repa_target_encoder.embed_dim}")
 
-    # attention-alignment teacher (only meaningful for the raw-image dataset path --
-    # for dataset.type == "latents" the target is precomputed offline into the shards
-    # instead, see scripts/precompute_latents.py, and this stays None)
-    attn_teacher = None
-    if config.attn_align.use_attn_align and config.dataset.type != "latents":
-        with main_process_first(rank):
-            from encoders.bridgetower_attn_teacher import BridgeTowerAttnTeacher
-            attn_teacher = BridgeTowerAttnTeacher(device=device)
-        logger.info(f"Attention-align teacher: {config.attn_align.teacher_model}")
-
     # text encoder for text conditioning; None if not using text conditioning
     text_encoder = setup_text_encoder(config, rank, device)
 
@@ -323,7 +313,6 @@ def main():
             progress_bar=progress_bar,
             text_encoder=text_encoder,
             repa_target_encoder=repa_target_encoder,
-            attn_teacher=attn_teacher,
             eval_datasets=eval_datasets,
             viz_fixed=viz_fixed,
         )
