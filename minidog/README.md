@@ -100,3 +100,33 @@ uv run python -m minidog.score --a results/samples/pretrain --b results/samples/
 
 `score` prints per-breed and overall PickScore preference and win rate of B over A, and HPSv2
 mean scores. FID and Inception Score are already logged during training.
+
+## Layout
+
+Where to look, by what you want to understand:
+
+**Core: the model and the objective**
+
+- [`dit.py`](dit.py): the LightningDiT denoiser (patch embedding, RoPE, attention blocks, time and text tokens, REPA read-out).
+- [`transport.py`](transport.py): flow matching (forward process, loss, x/v conversion), the Euler sampler, and classifier-free guidance.
+- [`vae.py`](vae.py): the frozen VAE tokenizer that maps images to 16x16x32 latents and back.
+- [`text_encoder.py`](text_encoder.py): Qwen3-0.6B caption embeddings.
+- [`dinov2.py`](dinov2.py): the frozen DINOv2 encoder used as the REPA target.
+
+**Training**
+
+- [`engine.py`](engine.py): one training epoch: batches, loss, EMA update, sample grids, periodic FID eval.
+- [`data.py`](data.py): WebDataset loaders for raw image shards and precomputed latent shards.
+- [`eval.py`](eval.py): FID and Inception Score computed across GPUs during training.
+- [`config.py`](config.py): the dataclasses every yaml in [`configs/`](../configs/) is parsed into.
+
+**Entry points**, run as `python -m minidog.<name>`
+
+- [`precompute_latents.py`](precompute_latents.py): cache VAE latents, text embeddings and DINOv2 features once.
+- [`fid_stats.py`](fid_stats.py): InceptionV3 reference statistics for FID.
+- [`train.py`](train.py): pretraining and fine-tuning.
+- [`offline_eval.py`](offline_eval.py): FID/IS of a saved checkpoint, optionally sweeping the CFG scale.
+- [`generate.py`](generate.py): sample images for a caption set from a checkpoint.
+- [`score.py`](score.py): PickScore and HPSv2 comparison of two generated sets.
+
+**Utilities** ([`utils/`](utils/)): checkpoint save/load, distributed setup, optimizer and LR schedule, experiment directories and resume, W&B logging.
