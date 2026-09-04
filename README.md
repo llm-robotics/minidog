@@ -1,18 +1,18 @@
 <p align="center"><img src="assets/minidog-full.png" alt="MiniDog" width="70%"></p>
 
-[![GitHub](https://img.shields.io/badge/diffusion--bench-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/End2End-Diffusion/diffusion-bench) [![HuggingFace](https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data)
+[![HuggingFace](https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data) [![Paper](https://img.shields.io/badge/Paper-PDF-EC1C24?style=for-the-badge&logo=adobeacrobatreader&logoColor=white)](about:blank)
 
 MiniDog is a minimal teaching and research resource for flow-matching generative models. It has two tasks.
 
 - **[Task 1](#task-1-flow-matching-basics)**: learn flow-matching basics on 2D toy data. Runs on CPU in [`toy_flow_matching.ipynb`](toy_flow_matching.ipynb), ~15 minutes.
-- **[Task 2](#task-2-minidog-text-to-image)**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos. Runs on 4 consumer GPUs from the [`minidog/`](minidog/) package, ~3 hours.
+- **[Task 2](#task-2-minidog-text-to-image)**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos. Runs on 4 consumer GPUs (RTX 3090) from the [`minidog/`](minidog/) package. Pre-training takes 2.5 hours, fine-tuning takes 20 minutes.
 
 Both tasks train the same objective:
 
 - A network learns the velocity that moves noise to data along a straight line.
 - Sampling integrates that velocity.
 - Task 1 shows this on 2D points you can plot.
-- Task 2 runs it at full scale: a [LightningDiT](minidog/dit.py) on [VAE latents](minidog/vae.py), with [text conditioning](minidog/text_encoder.py), [REPA](minidog/dinov2.py), [classifier-free guidance](minidog/transport.py#L179), and [FID](minidog/eval.py) and [preference scores](minidog/score.py).
+- Task 2 runs it at full scale: a [LightningDiT](minidog/dit.py) on [VAE latents](minidog/vae.py), with [text conditioning](minidog/text_encoder.py), [REPA](minidog/dinov2.py), [classifier-free guidance](minidog/transport.py), and [FID](minidog/eval.py) and [preference scores](minidog/score.py).
 
 **Prerequisites**: linear algebra, probability, and basic PyTorch. You should be able to write an `nn.Module`
 and a training loop.
@@ -32,7 +32,7 @@ The same flow-matching pieces appear in both tasks. Read them side by side; ever
 | The denoiser | `MLPDenoiser` | [`LightningDiT`](minidog/dit.py#L140) |
 | Conditioning on text | — | [`TextEncoder`](minidog/text_encoder.py#L8), [`ConditionEmbedder`](minidog/dit.py#L104) |
 | Classifier-free guidance | — | [`apply_cfg_dropout`](minidog/transport.py#L15) (train), [`forward_with_cfg`](minidog/transport.py#L179) (sample) |
-| Flow matching in a latent space | — | [`VAE.encode`](minidog/vae.py#L146), [`precompute_latents`](minidog/precompute_latents.py#L173) |
+| Flow matching in a latent space | — | [`VAE.encode`](minidog/vae.py#L146), [`precompute_latents`](minidog/precompute_latents.py#L180) |
 | Representation alignment (REPA) | — | [`DINOv2Encoder`](minidog/dinov2.py#L9), [`repa_projector`](minidog/dit.py#L178), [`loss_repa`](minidog/transport.py#L125) |
 
 ## Getting started
@@ -53,7 +53,7 @@ Run [the notebook](toy_flow_matching.ipynb) top to bottom. Each cell is explaine
 
 ### Task 2: MiniDog text-to-image
 
-4 GPUs, ~3 hours.
+4x3090 GPUs, 2.5 hours pretraining, 20 minutes fine-tuning.
 
 Follow [`minidog/README.md`](minidog/README.md). It walks through six steps: download the data,
 precompute latents, pretrain, fine-tune, generate, score. The configs are listed in [`configs/README.md`](configs/README.md). You will learn:
