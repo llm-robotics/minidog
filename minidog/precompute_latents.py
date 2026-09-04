@@ -84,6 +84,13 @@ def main():
     input_dir = Path(args.input_dir)
     if rank == 0:
         output_dir.mkdir(parents=True, exist_ok=True)
+        # start clean: shards are named rank{r}-shard-{n}, so leftovers from an earlier run with a
+        # different number of ranks would otherwise survive and duplicate samples
+        stale = list(output_dir.glob("rank*-shard-*.tar")) + list(output_dir.glob(".shard_sample_counts.json"))
+        for f in stale:
+            f.unlink()
+        if stale:
+            print(f"Removed {len(stale)} existing files from {output_dir}")
     if world_size > 1:
         dist.barrier()
 
