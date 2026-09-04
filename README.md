@@ -61,13 +61,13 @@ precompute latents, pretrain, fine-tune, generate, score. You will learn:
 
 ## Going further
 
-Users are welcome to explore the codebase more deeply. Here are some ideas:
+Ideas to explore once both tasks run:
 
-- Set `transport.prediction` to `x` and compare FID curves: the Task 1 question at a small T2I scale.
-- Turn `repa.use_repa` off, change `repa.repa_layer_depth`, or add another vision encoder as the REPA target in `minidog/dinov2.py`.
-- Add a VAE to `VAE_CONFIGS` in `minidog/vae.py`, e.g. [FLUX.2](https://huggingface.co/black-forest-labs/FLUX.2-dev), or a representation autoencoder such as [RAEv2](https://github.com/nanovisionx/RAEv2), and select it with `stage_1.params.vae_type`.
+- Set `transport.prediction` to `x` and compare FID curves: the Task 1 question at T2I scale.
+- Turn `repa.use_repa` off, change `repa.repa_layer_depth`, or swap the REPA target encoder in `minidog/dinov2.py`.
+- Try another tokenizer: add a class with `encode`/`decode` to `minidog/vae.py` and point `stage_1.target` at it, e.g. the [FLUX.2](https://huggingface.co/black-forest-labs/FLUX.2-dev) VAE or [RAEv2](https://github.com/nanovisionx/RAEv2).
 - Sweep `guidance.cfg.scale` on a checkpoint with `minidog.offline_eval`.
-- Fine-tune on your own images: pack `jpg` + `txt` WebDataset shards, precompute with `sft.yaml`, train from the pretrain checkpoint.
+- Fine-tune on your own images: pack `jpg` + `txt` WebDataset shards, build FID stats with `minidog.fid_stats`, precompute with `sft.yaml`, train from the pretrain checkpoint.
 
 ## Layout
 
