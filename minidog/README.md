@@ -70,17 +70,34 @@ Re-running with the same `EXPERIMENT_NAME` resumes from the latest checkpoint.
 `configs/` holds one yaml per experiment: `pretrain.yaml`, `sft.yaml`, and the eight
 `ablations/e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml` from the tutorial's ablation table
 (hyperparameters and reported FID in [`configs/README.md`](../configs/README.md)).
-To launch any of them, point `--config` at it and name the run after it:
+
+Each ablation reads latents for its own tokenizer and caption length (`dataset.data_dir` in the yaml).
+The Preprocess step above covers E2E-INVAE at 128 tokens; the other three combinations are cached
+the same way, once each:
+
+```bash
+# E2E-INVAE, 64-token captions
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
+    --config configs/ablations/e2e-invae-repa-64tok.yaml \
+    --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae
+# E2E-VAVAE, 128-token captions
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
+    --config configs/ablations/e2e-vavae-repa-128tok.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae
+# E2E-VAVAE, 64-token captions
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
+    --config configs/ablations/e2e-vavae-repa-64tok.yaml \
+    --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae
+```
+
+The `norepa` configs share latents with their `repa` siblings. To train any config, point `--config`
+at it and name the run after it:
 
 ```bash
 CONFIG=configs/ablations/e2e-invae-norepa-128tok.yaml
 export EXPERIMENT_NAME=$(basename $CONFIG .yaml)
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFIG --compile
 ```
-
-Each ablation reads its own latents folder (see the `dataset.data_dir` in the yaml): run
-`minidog.precompute_latents` once with that config before training it. The `*-64tok` configs use
-`$DATA/dogs_recaptioned_64tok_wds`, the same photos captioned in 25-40 words, as `--input-dir`.
 
 ## Generate and score
 
