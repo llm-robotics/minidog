@@ -33,7 +33,7 @@ The same flow-matching pieces appear in both tasks. Read them side by side; ever
 | The denoiser | `MLPDenoiser` | [`LightningDiT`](minidog/dit.py#L140) |
 | Conditioning on text | — | [`TextEncoder`](minidog/text_encoder.py#L8), [`ConditionEmbedder`](minidog/dit.py#L104) |
 | Classifier-free guidance | — | [`apply_cfg_dropout`](minidog/transport.py#L15) (train), [`forward_with_cfg`](minidog/transport.py#L179) (sample) |
-| Flow matching in a latent space | orthogonal projection to `D` dims | [`VAE.encode`](minidog/vae.py#L146), [`precompute_latents`](minidog/precompute_latents.py#L173) |
+| Flow matching in a latent space | — | [`VAE.encode`](minidog/vae.py#L146), [`precompute_latents`](minidog/precompute_latents.py#L173) |
 | Representation alignment (REPA) | — | [`DINOv2Encoder`](minidog/dinov2.py#L9), [`repa_projector`](minidog/dit.py#L178), [`loss_repa`](minidog/transport.py#L125) |
 
 ## Getting started
@@ -50,7 +50,7 @@ uv run jupyter lab toy_flow_matching.ipynb
 Run [the notebook](toy_flow_matching.ipynb) top to bottom. Each cell is explained in the markdown above it. You will learn:
 
 - how a flow-matching model is trained and sampled;
-- why predicting the clean data beats predicting the velocity when the data lives in a high-dimensional space.
+- why predicting the clean data beats predicting the velocity when the data lives in a high-dimensional space, and why MiniDog can still use v-prediction in its compressed latent space.
 
 ### Task 2: MiniDog text-to-image
 

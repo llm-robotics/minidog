@@ -11,7 +11,7 @@ All commands run from the repo root.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 
-# Prepare data
+# Prepare data (the dataset is private until publication: request access, then `uv run hf auth login`)
 export DATA=data/dog-t2i-diffusion-data
 uv run hf download reyhanehesi/dog-t2i-diffusion-data --local-dir $DATA --repo-type dataset
 mkdir -p $DATA/dogs_recaptioned_wds $DATA/dogs_synthetic_2k_wds
