@@ -1,4 +1,4 @@
-# MiniDog-T2I
+# MiniDog: Task 2, text-to-image
 
 Dog-breed text-to-image generation on 4 GPUs: a 12-layer LightningDiT trained with flow matching on
 frozen-VAE latents, conditioned on Qwen3-0.6B captions, with REPA alignment to DINOv2 features.
