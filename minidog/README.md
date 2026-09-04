@@ -22,21 +22,23 @@ done
 ## Preprocess (once)
 
 ```bash
-# FID reference statistics
+# FID reference statistics of the real photos
 uv run python -m minidog.fid_stats \
     --data-dir $DATA/dogs_recaptioned_wds \
     --output $DATA/dogs_recaptioned_stats.npz
 
-# cache VAE latents, text embeddings and DINOv2 features for both datasets
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
-    --config configs/pretrain.yaml \
-    --input-dir $DATA/dogs_recaptioned_wds \
-    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
-    --config configs/sft.yaml \
-    --input-dir $DATA/dogs_synthetic_2k_wds \
-    --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae
+# cache VAE latents, text embeddings and DINOv2 features. The config picks the tokenizer and the
+# caption length; each (tokenizer, caption length) pair gets its own latents folder.
+PRE="uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents"
+$PRE --config configs/pretrain.yaml                        --input-dir $DATA/dogs_recaptioned_wds       --output-dir $DATA/dogs_recaptioned_latents_e2e-invae         # pretrain + e2e-invae-*-128tok
+$PRE --config configs/sft.yaml                             --input-dir $DATA/dogs_synthetic_2k_wds      --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae        # sft
+$PRE --config configs/ablations/e2e-invae-repa-64tok.yaml  --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae   # e2e-invae-*-64tok
+$PRE --config configs/ablations/e2e-vavae-repa-128tok.yaml --input-dir $DATA/dogs_recaptioned_wds       --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae         # e2e-vavae-*-128tok
+$PRE --config configs/ablations/e2e-vavae-repa-64tok.yaml  --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae   # e2e-vavae-*-64tok
 ```
+
+The first two lines are enough for the pretrain and SFT walkthrough; the last three are only needed for
+the ablations. Each takes a few minutes on 4 GPUs.
 
 ## Train
 
@@ -60,8 +62,6 @@ Checkpoints and sample grids land in `ckpts/$EXPERIMENT_NAME/`, FID/IS in `resul
 FID/IS are logged every `eval.eval_interval` steps; to score a specific checkpoint (or sweep the
 CFG scale) run `torchrun --standalone --nproc_per_node=4 -m minidog.offline_eval --config <cfg>
 --checkpoint <ckpt> [--cfg-scale 1.5 2.0 6.0]`.
-`--compile` wraps the loss in `torch.compile`: ~25% higher throughput after a one-time warm-up
-of a minute or two, identical training curves. Drop it if compilation fails on your setup.
 Add `--wandb` with `ENTITY`, `PROJECT` and `WANDB_KEY` set to log to Weights & Biases.
 Re-running with the same `EXPERIMENT_NAME` resumes from the latest checkpoint.
 
@@ -69,29 +69,11 @@ Re-running with the same `EXPERIMENT_NAME` resumes from the latest checkpoint.
 
 `configs/` holds one yaml per experiment: `pretrain.yaml`, `sft.yaml`, and the eight
 `ablations/e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml` from the tutorial's ablation table
-(hyperparameters and reported FID in [`configs/README.md`](../configs/README.md)).
+(hyperparameters and reported FID in [`configs/README.md`](../configs/README.md)). Each config reads
+the latents folder for its tokenizer and caption length, cached in the Preprocess step; `norepa`
+configs share latents with their `repa` siblings.
 
-Each ablation reads latents for its own tokenizer and caption length (`dataset.data_dir` in the yaml).
-The Preprocess step above covers E2E-INVAE at 128 tokens; the other three combinations are cached
-the same way, once each:
-
-```bash
-# E2E-INVAE, 64-token captions
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
-    --config configs/ablations/e2e-invae-repa-64tok.yaml \
-    --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae
-# E2E-VAVAE, 128-token captions
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
-    --config configs/ablations/e2e-vavae-repa-128tok.yaml \
-    --input-dir $DATA/dogs_recaptioned_wds --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae
-# E2E-VAVAE, 64-token captions
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
-    --config configs/ablations/e2e-vavae-repa-64tok.yaml \
-    --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae
-```
-
-The `norepa` configs share latents with their `repa` siblings. To train any config, point `--config`
-at it and name the run after it:
+To train any config, point `--config` at it and name the run after it:
 
 ```bash
 CONFIG=configs/ablations/e2e-invae-norepa-128tok.yaml
