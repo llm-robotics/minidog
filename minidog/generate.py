@@ -58,8 +58,8 @@ def main(args):
 
     latent_size = tuple(config.misc.latent_size)
 
-    rae = instantiate_from_config(config.stage_1).to(device)
-    rae.eval()
+    vae = instantiate_from_config(config.stage_1).to(device)
+    vae.eval()
 
     if config.repa.use_repa:
         repa_target_encoder = DINOv2Encoder(config.training.image_size).to(device)
@@ -132,7 +132,7 @@ def main(args):
             samples = eval_sampler(zs_in, model_fn, **kwargs)[-1]
             if use_guidance:
                 samples = samples.chunk(2, dim=0)[0]
-            images = rae.decode(samples).cpu().float()
+            images = vae.decode(samples).cpu().float()
 
         for it, img in zip(batch, images):
             name = f"{it['breed']}_{it['stem']}"

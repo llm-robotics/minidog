@@ -53,7 +53,7 @@ def get_fixed_viz_batch_conditions(viz_fixed, y, text_encoder):
     return viz_fixed
 
 
-def sample_and_decode(zs, context, attn_mask, eval_sampler, model_fn, sample_model_kwargs, rae,
+def sample_and_decode(zs, context, attn_mask, eval_sampler, model_fn, sample_model_kwargs, vae,
                       use_guidance, text_encoder, autocast_kwargs):
     """Generate latents from noise and decode them; doubles the batch for CFG."""
     n = zs.shape[0]
@@ -69,7 +69,7 @@ def sample_and_decode(zs, context, attn_mask, eval_sampler, model_fn, sample_mod
         samples = eval_sampler(zs, model_fn, **kwargs)[-1]
         if use_guidance:
             samples = samples.chunk(2, dim=0)[0]
-    return rae.decode(samples).cpu().float()
+    return vae.decode(samples).cpu().float()
 
 
 def _expand_t(t, x):

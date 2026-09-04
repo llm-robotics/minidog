@@ -37,7 +37,7 @@ VAE_CONFIGS: Dict[str, VAEConfig] = {
 
 class VAE(nn.Module):
     """
-    VAE wrapper for Diffusers AutoencoderKL that matches RAE interface.
+    VAE wrapper for Diffusers AutoencoderKL: encode images to latents and decode back.
 
     Supports Flux VAE, SD3.5 VAE etc. through config presets
     or any custom Diffusers-based VAE via pretrained_path.
@@ -99,7 +99,7 @@ class VAE(nn.Module):
 
     @property
     def latent_dim(self) -> int:
-        """Return latent channels for compatibility with RAE interface."""
+        """Number of latent channels."""
         return self._latent_channels
 
     @property

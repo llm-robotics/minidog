@@ -43,7 +43,7 @@ from minidog.utils.train_utils import center_crop_arr, get_autocast_kwargs
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train Stage-2 transport model on RAE latents.")
+    parser = argparse.ArgumentParser(description="Train the MiniDog diffusion transformer on VAE latents.")
     parser.add_argument("--config", type=str, required=True, help="YAML config file.")
     parser.add_argument("--results-dir", type=str, default="ckpts")
     parser.add_argument("--precision", type=str, choices=["fp32", "bf16"], default="bf16")
@@ -112,9 +112,9 @@ def main():
     #########################################################
     latent_size = tuple(config.misc.latent_size)
 
-    # stage1: rae - frozen
-    rae: VAE = instantiate_from_config(config.stage_1).to(device)
-    rae.eval()
+    # stage 1: frozen VAE
+    vae: VAE = instantiate_from_config(config.stage_1).to(device)
+    vae.eval()
 
     # repa target encoder
     repa_target_encoder = None
@@ -226,7 +226,7 @@ def main():
 
     # print exp config and training details
     if rank == 0:
-        logger.info(f"Stage-1 VAE parameters: {sum(p.numel() for p in rae.parameters())/1e6:.2f}M")
+        logger.info(f"Stage-1 VAE parameters: {sum(p.numel() for p in vae.parameters())/1e6:.2f}M")
         logger.info(f"Stage-2 Model parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)/1e6:.2f}M")
         logger.info(f"Clipping gradients to max norm {config.training.clip_grad}." if config.training.clip_grad else "Not clipping gradients.")
         logger.info(optim_msg)
@@ -278,7 +278,7 @@ def main():
         global_step = train_one_epoch(
             ddp_model=ddp_model,
             ema_model=ema_model,
-            rae=rae,
+            vae=vae,
             transport=transport,
             eval_sampler=eval_sampler,
             dataloader=dataloader,

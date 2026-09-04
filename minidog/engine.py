@@ -20,7 +20,7 @@ from minidog.utils.checkpoint import save_stage2_checkpoint
 from minidog.utils.logging import save_eval_to_csv
 from minidog.utils.train_utils import update_ema
 
-logger = logging.getLogger("rae")
+logger = logging.getLogger("minidog")
 
 
 #########################################################
@@ -30,7 +30,7 @@ def train_one_epoch(
     *, # * forces all arguments to be passed as keyword arguments
     ddp_model: DDP,
     ema_model: torch.nn.Module,
-    rae,
+    vae,
     transport,
     eval_sampler,
     dataloader,
@@ -115,7 +115,7 @@ def train_one_epoch(
 
             # Encode images to latents and compute REPA targets
             with torch.no_grad():
-                z = rae.encode(images)
+                z = vae.encode(images)
                 z_clean = None
                 if repa_target_encoder is not None:
                     z_clean = repa_target_encoder(images * 255.0)
@@ -192,7 +192,7 @@ def train_one_epoch(
             logger.info("Generating EMA samples...")
             sample_args = dict(
                 eval_sampler=eval_sampler, model_fn=ema_model_fn,
-                sample_model_kwargs=sample_model_kwargs, rae=rae,
+                sample_model_kwargs=sample_model_kwargs, vae=vae,
                 use_guidance=use_guidance, text_encoder=text_encoder,
                 autocast_kwargs=autocast_kwargs,
             )
@@ -249,7 +249,7 @@ def train_one_epoch(
                     logger.info(f"Evaluating {mod_name} on {ds_name}...")
                     eval_stats = evaluate_generation_distributed(
                         fn, eval_sampler, tuple(config.misc.latent_size), sample_model_kwargs,
-                        use_guidance, rae, ds_info.dataset, len(ds_info.dataset),
+                        use_guidance, vae, ds_info.dataset, len(ds_info.dataset),
                         rank=rank, world_size=world_size, device=device,
                         batch_size=micro_batch_size, global_step=global_step,
                         autocast_kwargs=autocast_kwargs,

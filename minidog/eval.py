@@ -102,7 +102,7 @@ def evaluate_generation_distributed(
     latent_size,
     additional_model_kwargs,
     use_guidance: bool,
-    rae,
+    vae,
     val_dataset,
     num_samples: int,
     batch_size: int,
@@ -143,7 +143,7 @@ def evaluate_generation_distributed(
                 samples = sample_fn(z, model_fn, context=context, attn_mask=attn_mask, **additional_model_kwargs)[-1]
                 if use_guidance:
                     samples = samples.chunk(2, dim=0)[0]
-                samples = rae.decode(samples).clamp(0, 1)
+                samples = vae.decode(samples).clamp(0, 1)
 
             feats, logits = inception(samples.mul(255).clamp(0, 255).to(dtype=torch.uint8))
             local_feats.append(feats.cpu())

@@ -107,9 +107,9 @@ def main():
     # ------------------------------------------------------------------ #
     if rank == 0:
         print("Loading VAE...")
-    rae = instantiate_from_config(cfg.stage_1).to(device)
-    rae.eval()
-    rae.requires_grad_(False)
+    vae = instantiate_from_config(cfg.stage_1).to(device)
+    vae.eval()
+    vae.requires_grad_(False)
 
     if rank == 0:
         print("Loading text encoder...")
@@ -177,7 +177,7 @@ def main():
             images = torch.stack(images_list).to(device)
 
             with torch.no_grad():
-                latents = rae.encode(images)                              # [B, C, H, W]
+                latents = vae.encode(images)                              # [B, C, H, W]
                 tokens, attn_mask = encode_batch_text(text_encoder, captions)  # [B, seq, dim], [B, seq]
                 dinov2_feats = None
                 if repa_encoder is not None:

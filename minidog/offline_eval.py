@@ -41,7 +41,7 @@ def main():
     config.post_process()
     autocast_kwargs = dict(enabled=args.precision == "bf16", dtype=torch.bfloat16)
 
-    rae = instantiate_from_config(config.stage_1).to(device).eval()
+    vae = instantiate_from_config(config.stage_1).to(device).eval()
     text_encoder = setup_text_encoder(config, rank, device)
     state = torch.load(args.checkpoint, map_location="cpu")
     if config.repa.use_repa:  # train.py sets z_dim from the DINOv2 encoder; here read it off the saved projector
@@ -65,7 +65,7 @@ def main():
         model_fn, sample_kwargs = get_model_forward_fn(model, config.guidance)
         for name, ds in eval_datasets.items():
             metrics = evaluate_generation_distributed(
-                model_fn, sampler, latent_size, sample_kwargs, config.guidance.use_cfg, rae, ds.dataset, len(ds.dataset),
+                model_fn, sampler, latent_size, sample_kwargs, config.guidance.use_cfg, vae, ds.dataset, len(ds.dataset),
                 batch_size=args.batch_size, rank=rank, world_size=world_size, device=device, global_step=state.get("step", 0),
                 autocast_kwargs=autocast_kwargs, reference_npz_path=ds.reference_npz, text_encoder=text_encoder,
             )

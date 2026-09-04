@@ -20,14 +20,14 @@ def configure_experiment_dirs(args, rank) -> Tuple[str, str, logging.Logger]:
     if rank == 0:
         os.makedirs(args.results_dir, exist_ok=True)
         os.makedirs(checkpoint_dir, exist_ok=True)
-        logger = create_logger(experiment_dir, 'rae')
+        logger = create_logger(experiment_dir, 'minidog')
         logger.info(f"Experiment directory created at {experiment_dir}")
         if args.wandb:
             entity = os.environ["ENTITY"]
             project = os.environ["PROJECT"]
             initialize(args, entity, experiment_name, project)
     else:
-        logger = create_logger(None, 'rae')
+        logger = create_logger(None, 'minidog')
 
     # Multi-node support: each node's local_rank 0 creates dirs on its local filesystem
     dist.barrier()

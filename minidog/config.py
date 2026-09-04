@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 @dataclass
 class ModelConfig:
     """Generic model configuration for instantiate_from_config().
-    Used for stage_1 (RAE) and stage_2 (DiT) model definitions.
+    Used for stage_1 (VAE) and stage_2 (DiT) model definitions.
     The params dict is passed as kwargs to the target class constructor.
     """
     target: str = ""
