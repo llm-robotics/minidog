@@ -20,7 +20,7 @@ conditioning:
   cfg_dropout_prob: 0.1
   text_encoder:
     model_name: "Qwen/Qwen3-0.6B"
-    max_length: 64
+    max_length: 128
   arch:
       num_t_tokens: 4
 
@@ -40,7 +40,7 @@ guidance:
 dataset:
   target: 'dogs'
   type: 'latents'
-  data_dir: "data/dog-t2i-diffusion-data/dogs_recaptioned_64tok_latents_e2e-vavae"
+  data_dir: "data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-vavae"
   condition_type: "text"
   shuffle_buffer: 5000
   seed: 42
@@ -73,16 +73,19 @@ training:
 eval:
   eval_interval: 5000
   eval_model: false
-  eval_dir: "results/evals/e2e-vavae-norepa-64tok"
+  eval_dir: "results/evals/e2e-vavae-repa"
   datasets:
     dogs:
       target: 'dogs'
       type: 'wds'
-      data_dir: 'data/dog-t2i-diffusion-data/dogs_recaptioned_64tok_wds'
+      data_dir: 'data/dog-t2i-diffusion-data/dogs_recaptioned_wds'
       condition_type: 'text'
       reference_npz: 'data/dog-t2i-diffusion-data/dogs_recaptioned_stats.npz'
 
-
+repa:
+  use_repa: true
+  repa_layer_depth: 4
+  repa_coeff: 0.5
 
 misc:
   latent_size: [32, 16, 16]

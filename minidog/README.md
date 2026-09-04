@@ -67,20 +67,19 @@ Re-running with the same `EXPERIMENT_NAME` resumes from the latest checkpoint.
 
 ## Configs
 
-`configs/` holds one yaml per experiment: `pretrain.yaml`, `sft.yaml`, and the eight
-`ablations/e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml` from the tutorial's ablation table
+`configs/` holds one yaml per experiment: `pretrain.yaml`, `sft.yaml`, and the
+`ablations/e2e-{invae,vavae}-{repa,norepa}.yaml` grid from the tutorial's ablation table
 (hyperparameters and reported FID in [`configs/README.md`](../configs/README.md)).
 To launch any of them, point `--config` at it and name the run after it:
 
 ```bash
-CONFIG=configs/ablations/e2e-invae-norepa-128tok.yaml
+CONFIG=configs/ablations/e2e-invae-norepa.yaml
 export EXPERIMENT_NAME=$(basename $CONFIG .yaml)
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFIG --compile
 ```
 
 The `e2e-vavae-*` configs read latents from `$DATA/dogs_recaptioned_latents_e2e-vavae`, so run
-`minidog.precompute_latents` once with one of them first. The `*-64tok` configs need 64-token
-recaptions that are not in the HF dataset.
+`minidog.precompute_latents` once with one of them first.
 
 ## Generate and score
 

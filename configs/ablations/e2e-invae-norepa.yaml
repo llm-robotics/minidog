@@ -73,7 +73,7 @@ training:
 eval:
   eval_interval: 5000
   eval_model: false
-  eval_dir: "results/evals/e2e-invae-norepa-128tok"
+  eval_dir: "results/evals/e2e-invae-norepa"
   datasets:
     dogs:
       target: 'dogs'

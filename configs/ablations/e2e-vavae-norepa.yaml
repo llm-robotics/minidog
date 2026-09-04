@@ -73,7 +73,7 @@ training:
 eval:
   eval_interval: 5000
   eval_model: false
-  eval_dir: "results/evals/e2e-vavae-repa-128tok"
+  eval_dir: "results/evals/e2e-vavae-norepa"
   datasets:
     dogs:
       target: 'dogs'
@@ -82,10 +82,7 @@ eval:
       condition_type: 'text'
       reference_npz: 'data/dog-t2i-diffusion-data/dogs_recaptioned_stats.npz'
 
-repa:
-  use_repa: true
-  repa_layer_depth: 4
-  repa_coeff: 0.5
+
 
 misc:
   latent_size: [32, 16, 16]
