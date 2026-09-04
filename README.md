@@ -61,9 +61,11 @@ precompute latents, pretrain, fine-tune, generate, score. You will learn:
 
 ## Going further
 
-- Set `transport.prediction` to `x` and compare FID curves: the Task 1 question at full scale.
-- Turn `repa.use_repa` off, or change `repa.repa_layer_depth`.
-- Swap the tokenizer with `stage_1.params.vae_type`: `e2e-invae` or `e2e-vavae`.
+Users are welcome to explore the codebase more deeply. Here are some ideas:
+
+- Set `transport.prediction` to `x` and compare FID curves: the Task 1 question at a small T2I scale.
+- Turn `repa.use_repa` off, change `repa.repa_layer_depth`, or add another vision encoder as the REPA target in `minidog/dinov2.py`.
+- Add a VAE to `VAE_CONFIGS` in `minidog/vae.py`, e.g. [FLUX.2](https://huggingface.co/black-forest-labs/FLUX.2-dev), or a representation autoencoder such as [RAEv2](https://github.com/nanovisionx/RAEv2), and select it with `stage_1.params.vae_type`.
 - Sweep `guidance.cfg.scale` on a checkpoint with `minidog.offline_eval`.
 - Fine-tune on your own images: pack `jpg` + `txt` WebDataset shards, precompute with `sft.yaml`, train from the pretrain checkpoint.
 
