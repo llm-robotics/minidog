@@ -1,10 +1,11 @@
-<p align="center"><img src="assets/minidog-cute.jpg" alt="MiniDog" width="320"></p>
-
-# MiniDog
+<h1>
+  <img src="assets/minidog-cute.jpg" alt="DiffusionBench logo" width="40" align="top">
+  MiniDog
+</h1>
 
 A teaching resource for flow-matching generative models, in two tasks:
 
-- **Task 1**: flow-matching basics on 2D toy data, on CPU. `toy_flow_matching.ipynb`, minutes.
+- **Task 1**: flow-matching basics on 2D toy data, on CPU. `toy_flow_matching.ipynb`, ~15 minutes.
 - **Task 2**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos, on 4 consumer GPUs. The `minidog/` package, ~3 hours.
 
 Both tasks use the same objective. A network learns the velocity from noise to data along a straight line;
@@ -33,8 +34,23 @@ a LightningDiT on VAE latents, text conditioning, REPA, classifier-free guidance
 
 ## Getting started
 
-- **Task 1**: `uv sync`, open `toy_flow_matching.ipynb`, run top to bottom. Each cell is explained above it.
-- **Task 2**: follow [`minidog/README.md`](minidog/README.md): data, precompute, pretrain, fine-tune, generate, score.
+**Task 1: flow-matching basics** (CPU, ~10 minutes)
+
+```bash
+uv sync
+uv run jupyter lab toy_flow_matching.ipynb
+```
+
+Run it top to bottom; each cell is explained in the markdown above it. You will learn how a
+flow-matching model is trained and sampled, and why predicting the clean data rather than the velocity
+matters once the data lives in a high-dimensional space.
+
+**Task 2: MiniDog text-to-image** (4 GPUs, ~3 hours)
+
+Follow [`minidog/README.md`](minidog/README.md): download the data, precompute latents, pretrain,
+fine-tune, generate, score. You will learn how a text-to-image diffusion transformer is built and trained
+with the same objective, how tokenizer, REPA and guidance choices change the result, and why FID and
+human-preference scores can disagree after fine-tuning.
 
 ## Going further
 
@@ -50,5 +66,4 @@ a LightningDiT on VAE latents, text conditioning, REPA, classifier-free guidance
 toy_flow_matching.ipynb   Task 1
 minidog/                  Task 2 package and README
 configs/                  experiment configs and results
-LICENSE                   MIT
 ```
