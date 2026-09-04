@@ -1,9 +1,8 @@
-<h1>
-  <img src="assets/minidog-cute.jpg" alt="DiffusionBench logo" width="40" align="top">
-  MiniDog
-</h1>
+<p align="center"><img src="assets/minidog-full.png" alt="MiniDog" width="70%"></p>
 
-MiniDog is a teaching resource for flow-matching generative models. It has two tasks.
+[![GitHub](https://img.shields.io/badge/diffusion--bench-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/End2End-Diffusion/diffusion-bench) [![HuggingFace](https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data)
+
+MiniDog is a minimal teaching and research resource for flow-matching generative models. It has two tasks.
 
 - **[Task 1](#task-1-flow-matching-basics)**: learn flow-matching basics on 2D toy data. Runs on CPU in [`toy_flow_matching.ipynb`](toy_flow_matching.ipynb), ~15 minutes.
 - **[Task 2](#task-2-minidog-text-to-image)**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos. Runs on 4 consumer GPUs from the [`minidog/`](minidog/) package, ~3 hours.
