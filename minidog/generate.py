@@ -162,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--group-by-breed", action="store_true",
                          help="Write outputs to output_dir/{breed}/{breed}_{stem}.png instead of "
                               "flat output_dir/{breed}_{stem}.png -- matches a per-breed caption "
-                              "folder layout (e.g. reward_model/breeds/{breed}/...). Off by default "
+                              "folder layout the caption set uses. Off by default "
                               "for backward compatibility with existing flat-output callers.")
     args = parser.parse_args()
     main(args)
