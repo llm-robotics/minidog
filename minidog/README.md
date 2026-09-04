@@ -37,8 +37,8 @@ $PRE --config configs/ablations/e2e-vavae-repa-128tok.yaml --input-dir $DATA/dog
 $PRE --config configs/ablations/e2e-vavae-repa-64tok.yaml  --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae   # e2e-vavae-*-64tok
 ```
 
-The first two lines are enough for the pretrain and SFT walkthrough; the last three are only needed for
-the ablations. Each takes a few minutes on 4 GPUs.
+The first two lines cover the pretrain and SFT walkthrough. The last three are for the ablations only.
+Each takes a few minutes on 4 GPUs.
 
 ## Train
 
@@ -58,20 +58,23 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
     --init-weights-only
 ```
 
-Checkpoints and sample grids land in `ckpts/$EXPERIMENT_NAME/`, FID/IS in `results/evals/`.
-FID/IS are logged every `eval.eval_interval` steps; to score a specific checkpoint (or sweep the
-CFG scale) run `torchrun --standalone --nproc_per_node=4 -m minidog.offline_eval --config <cfg>
---checkpoint <ckpt> [--cfg-scale 1.5 2.0 6.0]`.
-Add `--wandb` with `ENTITY`, `PROJECT` and `WANDB_KEY` set to log to Weights & Biases.
-Re-running with the same `EXPERIMENT_NAME` resumes from the latest checkpoint.
+- Outputs: checkpoints and sample grids in `ckpts/$EXPERIMENT_NAME/`, FID/IS in `results/evals/`.
+- FID/IS are logged every `eval.eval_interval` steps. To score one checkpoint, or sweep the CFG scale:
+
+  ```bash
+  uv run torchrun --standalone --nproc_per_node=4 -m minidog.offline_eval --config <cfg> --checkpoint <ckpt> --cfg-scale 1.5 2.0 6.0
+  ```
+
+- `--wandb` logs to Weights & Biases; set `ENTITY`, `PROJECT` and `WANDB_KEY`.
+- Re-running with the same `EXPERIMENT_NAME` resumes from the latest checkpoint.
 
 ## Configs
 
-`configs/` holds one yaml per experiment: `pretrain.yaml`, `sft.yaml`, and the eight
-`ablations/e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml` from the tutorial's ablation table
-(hyperparameters and reported FID in [`configs/README.md`](../configs/README.md)). Each config reads
-the latents folder for its tokenizer and caption length, cached in the Preprocess step; `norepa`
-configs share latents with their `repa` siblings.
+One yaml per experiment; hyperparameters and reported FID in [`configs/README.md`](../configs/README.md).
+
+- `pretrain.yaml`, `sft.yaml`: the main walkthrough.
+- `ablations/e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml`: the tokenizer x REPA x caption-length grid.
+- Each config reads the latents for its tokenizer and caption length (Preprocess step). `norepa` configs reuse their `repa` sibling's latents.
 
 To train any config, point `--config` at it and name the run after it:
 
@@ -83,8 +86,7 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFI
 
 ## Generate and score
 
-Sample the 500 evaluation captions from two checkpoints, then compare the two folders with
-two learned human-preference models, PickScore and HPSv2:
+Sample the 500 evaluation captions from two checkpoints, then compare the two folders with PickScore and HPSv2:
 
 ```bash
 for RUN in pretrain sft; do
@@ -97,8 +99,7 @@ done
 uv run python -m minidog.score --a results/samples/pretrain --b results/samples/sft
 ```
 
-`score` prints per-breed and overall PickScore preference and win rate of B over A, and HPSv2
-mean scores. FID and Inception Score are already logged during training.
+`score` prints PickScore preference and win rate of B over A, and HPSv2 means, per breed and overall.
 
 ## Layout
 
