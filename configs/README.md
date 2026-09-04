@@ -1,19 +1,23 @@
 # Configs
 
 All configs train the same model: a 12-layer, 384-wide LightningDiT (6 heads, patch size 1) on
-16x16x32 latents from a frozen VAE, conditioned on 128-token Qwen3-0.6B caption embeddings, with
+16x16x32 latents from a frozen VAE, conditioned on Qwen3-0.6B caption embeddings, with
 velocity-prediction flow matching and 4 timestep tokens. They differ only in the knobs below.
 
-| Config | VAE | REPA | Epochs | EMA | LR | Notes |
-|---|---|---|---|---|---|---|
-| `pretrain.yaml` | E2E-INVAE | yes | 200 | 0.9995 | 1e-4, 100 warmup | **The pretraining run.** FID 9.4 |
-| `sft.yaml` | E2E-INVAE | yes | 100 | 0.995 | 5e-5, no warmup | **Fine-tune from `pretrain` on 2k synthetic dogs.** Launch with `--ckpt <pretrain ckpt> --init-weights-only` |
-| `ablations/e2e-invae-norepa.yaml` | E2E-INVAE | no | 200 | 0.9995 | 1e-4 | FID 11.5 |
-| `ablations/e2e-vavae-repa.yaml` | E2E-VAVAE | yes | 200 | 0.9995 | 1e-4 | FID 13.9 |
-| `ablations/e2e-vavae-norepa.yaml` | E2E-VAVAE | no | 200 | 0.9995 | 1e-4 | FID 14.4 |
+| Config | VAE | REPA | Caption tokens | Epochs | EMA | LR | Notes |
+|---|---|---|---|---|---|---|---|
+| `pretrain.yaml` | E2E-INVAE | yes | 128 | 200 | 0.9995 | 1e-4, 100 warmup | **The pretraining run.** FID 9.4 |
+| `sft.yaml` | E2E-INVAE | yes | 128 | 100 | 0.995 | 5e-5, no warmup | **Fine-tune from `pretrain` on 2k synthetic dogs.** Launch with `--ckpt <pretrain ckpt> --init-weights-only` |
+| `ablations/e2e-invae-repa-64tok.yaml` | E2E-INVAE | yes | 64 | 200 | 0.9995 | 1e-4 | FID 9.8 |
+| `ablations/e2e-invae-norepa-128tok.yaml` | E2E-INVAE | no | 128 | 200 | 0.9995 | 1e-4 | FID 11.5 |
+| `ablations/e2e-invae-norepa-64tok.yaml` | E2E-INVAE | no | 64 | 200 | 0.9995 | 1e-4 | FID 12.7 |
+| `ablations/e2e-vavae-repa-64tok.yaml` | E2E-VAVAE | yes | 64 | 200 | 0.9995 | 1e-4 | FID 13.4 |
+| `ablations/e2e-vavae-repa-128tok.yaml` | E2E-VAVAE | yes | 128 | 200 | 0.9995 | 1e-4 | FID 13.9 |
+| `ablations/e2e-vavae-norepa-128tok.yaml` | E2E-VAVAE | no | 128 | 200 | 0.9995 | 1e-4 | FID 14.4 |
+| `ablations/e2e-vavae-norepa-64tok.yaml` | E2E-VAVAE | no | 64 | 200 | 0.9995 | 1e-4 | FID 16.7 |
 
-`pretrain.yaml` is the E2E-INVAE / REPA corner of the ablation grid; the four rows together are the
-tokenizer x REPA sweep. All captions use a 128-token budget.
+`pretrain.yaml` is the INVAE / REPA / 128-token corner of the ablation grid; the eight rows
+together are the tokenizer x REPA x caption-length sweep reported in the tutorial.
 
 ## Data paths
 
@@ -32,3 +36,6 @@ reference stats are produced locally:
 | `dogs_recaptioned_latents_e2e-vavae/` | latents for the VAVAE ablations | same, with a `vavae-*` config |
 | `captions_500.json` | 500 eval captions for `minidog.generate` | shipped |
 
+The four `*-64tok` ablations additionally need `dogs_recaptioned_64tok_wds/` (the same photos
+recaptioned to 25-40 words) and latents precomputed from it with `max_length: 64`. Those shards
+are not part of the HF dataset.
