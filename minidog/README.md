@@ -11,12 +11,12 @@ All commands run from the repo root.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 
-# Prepare data (the dataset is private until publication: request access, then `uv run hf auth login`)
+# Prepare data
 export DATA=data/dog-t2i-diffusion-data
 uv run hf download reyhanehesi/dog-t2i-diffusion-data --local-dir $DATA --repo-type dataset
-mkdir -p $DATA/dogs_recaptioned_wds $DATA/dogs_synthetic_2k_wds
-tar -xzf $DATA/dogs_recaptioned_wds.tar.gz  -C $DATA/dogs_recaptioned_wds && rm $DATA/dogs_recaptioned_wds.tar.gz
-tar -xzf $DATA/dogs_synthetic_2k_wds.tar.gz -C $DATA/dogs_synthetic_2k_wds && rm $DATA/dogs_synthetic_2k_wds.tar.gz
+for NAME in dogs_recaptioned_wds dogs_synthetic_2k_wds dogs_recaptioned_64tok_wds; do
+  mkdir -p $DATA/$NAME && tar -xzf $DATA/$NAME.tar.gz -C $DATA/$NAME && rm $DATA/$NAME.tar.gz
+done
 ```
 
 ## Preprocess (once)
@@ -78,9 +78,9 @@ export EXPERIMENT_NAME=$(basename $CONFIG .yaml)
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFIG --compile
 ```
 
-The `e2e-vavae-*` configs read latents from `$DATA/dogs_recaptioned_latents_e2e-vavae`, so run
-`minidog.precompute_latents` once with one of them first. The `*-64tok` configs need 64-token
-recaptions that are not in the HF dataset.
+Each ablation reads its own latents folder (see the `dataset.data_dir` in the yaml): run
+`minidog.precompute_latents` once with that config before training it. The `*-64tok` configs use
+`$DATA/dogs_recaptioned_64tok_wds`, the same photos captioned in 25-40 words, as `--input-dir`.
 
 ## Generate and score
 

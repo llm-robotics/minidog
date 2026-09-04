@@ -23,19 +23,18 @@ together are the tokenizer x REPA x caption-length sweep reported in the tutoria
 
 Every config expects the dataset under `data/dog-t2i-diffusion-data/`, which is where
 `hf download reyhanehesi/dog-t2i-diffusion-data --local-dir data/dog-t2i-diffusion-data` puts it.
-The two tarballs extract into flat folders of `shard-*.tar`; the latents folders and the FID
+The three tarballs extract into flat folders of `shard-*.tar`; the latents folders and the FID
 reference stats are produced locally:
 
 | Path (under `data/dog-t2i-diffusion-data/`) | What | Produced by |
 |---|---|---|
 | `dogs_recaptioned_wds/` | 26k real dog photos + captions | `tar -xzf dogs_recaptioned_wds.tar.gz -C dogs_recaptioned_wds/` |
 | `dogs_synthetic_2k_wds/` | 2k synthetic SFT images + captions | `tar -xzf dogs_synthetic_2k_wds.tar.gz -C dogs_synthetic_2k_wds/` |
+| `dogs_recaptioned_64tok_wds/` | the same 26k photos, captions of 25-40 words (fit 64 tokens) | `tar -xzf dogs_recaptioned_64tok_wds.tar.gz -C dogs_recaptioned_64tok_wds/` |
 | `dogs_recaptioned_stats.npz` | InceptionV3 mu/sigma for FID | `python -m minidog.fid_stats --data-dir .../dogs_recaptioned_wds --output .../dogs_recaptioned_stats.npz` |
 | `dogs_recaptioned_latents_e2e-invae/` | pretraining latents (INVAE) | `python -m minidog.precompute_latents --config configs/pretrain.yaml --input-dir .../dogs_recaptioned_wds --output-dir .../dogs_recaptioned_latents_e2e-invae` |
 | `dogs_synthetic_2k_latents_e2e-invae/` | SFT latents (INVAE) | same, with `--config configs/sft.yaml` and the synthetic shards |
-| `dogs_recaptioned_latents_e2e-vavae/` | latents for the VAVAE ablations | same, with a `vavae-*` config |
+| `dogs_recaptioned_latents_e2e-vavae/` | latents for the VAVAE ablations | same, with a `vavae-*-128tok` config |
+| `dogs_recaptioned_64tok_latents_e2e-{invae,vavae}/` | latents for the `*-64tok` ablations | same, with a `*-64tok` config and `--input-dir .../dogs_recaptioned_64tok_wds` |
 | `captions_500.json` | 500 eval captions for `minidog.generate` | shipped |
 
-The four `*-64tok` ablations additionally need `dogs_recaptioned_64tok_wds/` (the same photos
-recaptioned to 25-40 words) and latents precomputed from it with `max_length: 64`. Those shards
-are not part of the HF dataset.
