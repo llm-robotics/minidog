@@ -34,7 +34,7 @@ a LightningDiT on VAE latents, text conditioning, REPA, classifier-free guidance
 
 ## Getting started
 
-**Task 1: flow-matching basics** (CPU, ~10 minutes)
+**Task 1: flow-matching basics** (CPU, ~15 minutes)
 
 ```bash
 uv sync
