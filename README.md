@@ -3,16 +3,18 @@
   MiniDog
 </h1>
 
-A teaching resource for flow-matching generative models, in two tasks:
+MiniDog is a teaching resource for flow-matching generative models. It has two tasks.
 
-- **Task 1**: flow-matching basics on 2D toy data, on CPU. `toy_flow_matching.ipynb`, ~15 minutes.
-- **Task 2**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos, on 4 consumer GPUs. The `minidog/` package, ~3 hours.
+- **Task 1**: learn flow-matching basics on 2D toy data. Runs on CPU in `toy_flow_matching.ipynb`, ~15 minutes.
+- **Task 2**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos. Runs on 4 consumer GPUs from the `minidog/` package, ~3 hours.
 
-Both tasks use the same objective. A network learns the velocity from noise to data along a straight line;
-sampling integrates that velocity. Task 1 shows it on points you can plot. Task 2 runs it at full scale:
-a LightningDiT on VAE latents, text conditioning, REPA, classifier-free guidance, FID and preference scores.
+Both tasks train the same objective. A network learns the velocity that moves noise to data along a straight
+line. Sampling integrates that velocity. Task 1 shows this on 2D points you can plot. Task 2 runs it at full
+scale with a LightningDiT on VAE latents, text conditioning, REPA, classifier-free guidance, and FID and
+preference scores.
 
-**Prerequisites**: linear algebra, probability, and enough PyTorch to write an `nn.Module` and a training loop.
+**Prerequisites**: linear algebra, probability, and basic PyTorch. You should be able to write an `nn.Module`
+and a training loop.
 
 ## Where each concept lives
 
@@ -41,16 +43,17 @@ uv sync
 uv run jupyter lab toy_flow_matching.ipynb
 ```
 
-Run it top to bottom; each cell is explained in the markdown above it. You will learn how a
-flow-matching model is trained and sampled, and why predicting the clean data rather than the velocity
-matters once the data lives in a high-dimensional space.
+Run the notebook top to bottom. Each cell is explained in the markdown above it. You will learn how a
+flow-matching model is trained and sampled. You will also see why predicting the clean data beats
+predicting the velocity when the data lives in a high-dimensional space.
 
 **Task 2: MiniDog text-to-image** (4 GPUs, ~3 hours)
 
-Follow [`minidog/README.md`](minidog/README.md): download the data, precompute latents, pretrain,
-fine-tune, generate, score. You will learn how a text-to-image diffusion transformer is built and trained
-with the same objective, how tokenizer, REPA and guidance choices change the result, and why FID and
-human-preference scores can disagree after fine-tuning.
+Follow [`minidog/README.md`](minidog/README.md). It walks through six steps: download the data,
+precompute latents, pretrain, fine-tune, generate, score. You will learn how a text-to-image diffusion
+transformer is built and trained with the same objective. You will see how the tokenizer, REPA and
+guidance change the result. You will also see why FID and human-preference scores disagree after
+fine-tuning.
 
 ## Going further
 
