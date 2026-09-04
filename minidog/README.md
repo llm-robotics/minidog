@@ -86,7 +86,7 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
   uv run torchrun --standalone --nproc_per_node=4 -m minidog.offline_eval --config <cfg> --checkpoint <ckpt> --cfg-scale 1.5 2.0 6.0
   ```
 
-- `--wandb` logs to Weights & Biases; set `ENTITY`, `PROJECT` and `WANDB_KEY`.
+- `--wandb` logs to Weights & Biases; set `ENTITY`, `PROJECT` and `WANDB_KEY` environment variables first.
 - Re-running with the same `EXPERIMENT_NAME` resumes from the latest checkpoint.
 
 ## Configs
