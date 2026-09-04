@@ -24,17 +24,17 @@ The same flow-matching pieces appear in both tasks. Read them side by side.
 
 | Flow-matching concept | Task 1: `toy_flow_matching.ipynb` | Task 2: `minidog/` |
 |---|---|---|
-| Forward process `x_t = (1-t) x + t eps` | *Flow matching* cell, `training_losses` | [`transport.py`](minidog/transport.py) `Transport.sample` |
-| Target `v = eps - x`, MSE loss | same cell | [`transport.py`](minidog/transport.py) `compute_loss` |
-| x- vs v-prediction | `pred_type` branches | [`transport.py`](minidog/transport.py) `convert_model_pred`, config `transport.prediction` |
-| Timestep sampling during training | uniform `t` | [`transport.py`](minidog/transport.py) `get_time_sampler`, logit-normal |
-| Euler sampling from noise to data | `sample` | [`transport.py`](minidog/transport.py) `Sampler.sample_ode` |
-| Time conditioning of the network | *Model* cell, `SinusoidalEmbedding` | [`dit.py`](minidog/dit.py) `GaussianFourierEmbedding`, 4 time tokens |
-| The denoiser | `MLPDenoiser` | [`dit.py`](minidog/dit.py) `LightningDiT` |
-| Conditioning on text | — | [`text_encoder.py`](minidog/text_encoder.py), [`dit.py`](minidog/dit.py) `ConditionEmbedder` |
-| Classifier-free guidance | — | [`transport.py`](minidog/transport.py) `apply_cfg_dropout`, `forward_with_cfg` |
-| Flow matching in a latent space | orthogonal projection to `D` dims | [`vae.py`](minidog/vae.py), [`precompute_latents.py`](minidog/precompute_latents.py) |
-| Representation alignment (REPA) | — | [`dinov2.py`](minidog/dinov2.py), `repa_projector` in [`dit.py`](minidog/dit.py), loss in `training_losses` |
+| Forward process `x_t = (1-t) x + t eps` | *Flow matching* cell, `training_losses` | [`Transport.sample`](minidog/transport.py#L103) |
+| Target `v = eps - x`, MSE loss | same cell | [`compute_loss`](minidog/transport.py#L135) |
+| x- vs v-prediction | `pred_type` branches | [`convert_model_pred`](minidog/transport.py#L128), config `transport.prediction` |
+| Timestep sampling during training | uniform `t` | [`get_time_sampler`](minidog/transport.py#L79), logit-normal |
+| Euler sampling from noise to data | `sample` | [`Sampler.sample_ode`](minidog/transport.py#L155) |
+| Time conditioning of the network | *Model* cell, `SinusoidalEmbedding` | [`GaussianFourierEmbedding`](minidog/dit.py#L86), 4 time tokens |
+| The denoiser | `MLPDenoiser` | [`LightningDiT`](minidog/dit.py#L140) |
+| Conditioning on text | — | [`TextEncoder`](minidog/text_encoder.py#L8), [`ConditionEmbedder`](minidog/dit.py#L104) |
+| Classifier-free guidance | — | [`apply_cfg_dropout`](minidog/transport.py#L15) (train), [`forward_with_cfg`](minidog/transport.py#L179) (sample) |
+| Flow matching in a latent space | orthogonal projection to `D` dims | [`VAE.encode`](minidog/vae.py#L146), [`precompute_latents`](minidog/precompute_latents.py#L173) |
+| Representation alignment (REPA) | — | [`DINOv2Encoder`](minidog/dinov2.py#L9), [`repa_projector`](minidog/dit.py#L178), [`loss_repa`](minidog/transport.py#L125) |
 
 ## Getting started
 
