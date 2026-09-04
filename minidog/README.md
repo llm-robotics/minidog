@@ -30,15 +30,36 @@ uv run python -m minidog.fid_stats \
 # cache VAE latents, text embeddings and DINOv2 features. The config picks the tokenizer and the
 # caption length; each (tokenizer, caption length) pair gets its own latents folder.
 PRE="uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents"
-$PRE --config configs/pretrain.yaml                        --input-dir $DATA/dogs_recaptioned_wds       --output-dir $DATA/dogs_recaptioned_latents_e2e-invae         # pretrain + e2e-invae-*-128tok
-$PRE --config configs/sft.yaml                             --input-dir $DATA/dogs_synthetic_2k_wds      --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae        # sft
-$PRE --config configs/ablations/e2e-invae-repa-64tok.yaml  --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae   # e2e-invae-*-64tok
-$PRE --config configs/ablations/e2e-vavae-repa-128tok.yaml --input-dir $DATA/dogs_recaptioned_wds       --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae         # e2e-vavae-*-128tok
-$PRE --config configs/ablations/e2e-vavae-repa-64tok.yaml  --input-dir $DATA/dogs_recaptioned_64tok_wds --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae   # e2e-vavae-*-64tok
+
+# pretrain + e2e-invae-*-128tok
+$PRE --config configs/pretrain.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds \
+    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae
+
+# sft
+$PRE --config configs/sft.yaml \
+    --input-dir $DATA/dogs_synthetic_2k_wds \
+    --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae
+
+# e2e-invae-*-64tok
+$PRE --config configs/ablations/e2e-invae-repa-64tok.yaml \
+    --input-dir $DATA/dogs_recaptioned_64tok_wds \
+    --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae
+
+# e2e-vavae-*-128tok
+$PRE --config configs/ablations/e2e-vavae-repa-128tok.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds \
+    --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae
+
+# e2e-vavae-*-64tok
+$PRE --config configs/ablations/e2e-vavae-repa-64tok.yaml \
+    --input-dir $DATA/dogs_recaptioned_64tok_wds \
+    --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae
 ```
 
-The first two lines cover the pretrain and SFT walkthrough. The last three are for the ablations only.
-Each takes a few minutes on 4 GPUs.
+The first two blocks cover the pretrain and SFT walkthrough; the other three are for the ablations only.
+Each takes a few minutes on 4 GPUs. Re-running into an existing folder replaces its shards, and any
+GPU count works.
 
 ## Train
 
