@@ -8,7 +8,7 @@
 MiniDog is a minimal teaching and research resource for flow-matching generative models. It has two tasks.
 
 - **[Task 1](#task-1-flow-matching-basics)**: learn flow-matching basics on 2D toy data. Runs on CPU in [`toy_flow_matching.ipynb`](toy_flow_matching.ipynb), ~15 minutes.
-- **[Task 2](#task-2-minidog-text-to-image)**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos. Runs on 4 consumer GPUs (RTX 3090) from the [`minidog/`](minidog/) package. Pre-training takes 2.5 hours, fine-tuning takes 20 minutes.
+- **[Task 2](#task-2-minidog-text-to-image)**: pretrain and fine-tune a text-to-image diffusion transformer on dog photos. Runs on 4 consumer GPUs (RTX 3090) from the [`minidog/`](minidog/) package. Pre-training takes 75 minutes, fine-tuning takes 20 minutes.
 
 Both tasks train the same objective:
 
@@ -56,7 +56,7 @@ Run [the notebook](toy_flow_matching.ipynb) top to bottom. Each cell is explaine
 
 ### Task 2: MiniDog text-to-image
 
-4x3090 GPUs, 2.5 hours pretraining, 20 minutes fine-tuning.
+4x3090 GPUs, 75 minutes pretraining, 20 minutes fine-tuning.
 
 Follow [`minidog/README.md`](minidog/README.md). It walks through six steps: download the data,
 precompute latents, pretrain, fine-tune, generate, score. The configs are listed in [`configs/README.md`](configs/README.md). You will learn:
