@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data" target="_blank"><img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white" alt="HuggingFace"></a>
-  <a href="about:blank" target="_blank"><img src="https://img.shields.io/badge/Paper-PDF-EC1C24?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Paper"></a>
+  <a href="https://github.com/llm-robotics/minidog/blob/main/MiniDog_paper.pdf" target="_blank"><img src="https://img.shields.io/badge/Paper-PDF-EC1C24?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Paper"></a>
 </p>
 
 MiniDog is a minimal teaching and research resource for flow-matching generative models. It has two tasks.
