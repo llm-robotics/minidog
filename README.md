@@ -2,10 +2,16 @@
 
 <p align="center">
   <a href="https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data" target="_blank"><img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white" alt="HuggingFace"></a>
+  <a href="https://huggingface.co/reyhanehesi/minidog-checkpoints" target="_blank"><img src="https://img.shields.io/badge/Checkpoints-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white" alt="Checkpoints"></a>
   <a href="about:blank" target="_blank"><img src="https://img.shields.io/badge/Paper-PDF-EC1C24?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Paper"></a>
 </p>
 
-MiniDog is a minimal teaching and research resource for flow-matching generative models. It has two tasks.
+<p align="center">
+  <a href="assets/minidog-60s.mp4"><img src="assets/minidog-teaser.gif" alt="MiniDog in 60 seconds" width="88%"></a>
+</p>
+<p align="center"><sub><a href="assets/minidog-60s.mp4">Full 60-second version</a></sub></p>
+
+MiniDog is a minimal teaching and research resource for flow-matching generative models, in two parts.
 
 - **[Warm-up](#warm-up-flow-matching-basics)**: learn flow-matching basics on 2D toy data. Runs on CPU in [`toy_flow_matching.ipynb`](toy_flow_matching.ipynb), ~15 minutes.
 - **[The five lessons](#the-five-lessons)**: build a text-to-image diffusion transformer one design decision at a time, each backed by a controlled experiment you can rerun. Runs on 4 consumer GPUs (RTX 3090) from the [`minidog/`](minidog/) package. Pretraining reaches FID 8.32 in 75 minutes of training, fine-tuning takes 20 more.
