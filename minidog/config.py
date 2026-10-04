@@ -129,11 +129,34 @@ class GuidanceConfig:
 
 @dataclass
 class RepaConfig:
-    """REPA loss: align an intermediate DiT layer to frozen DINOv2 patch features."""
+    """REPA loss: align an intermediate DiT layer to frozen DINO patch features."""
     use_repa: bool = False
     repa_layer_depth: int = 8
     repa_coeff: float = 0.5
-    z_dim: Optional[int] = None  # set from the DINOv2 embed_dim in train.py
+    repa_loss_type: str = "mse"  # "mse" (this repo's default) or "cosine" (REPA/iREPA papers)
+    z_dim: Optional[int] = None  # set from the target encoder's embed_dim in train.py
+    irepa: bool = False  # iREPA (arXiv:2512.10794): swap the linear projector for a
+    # 3x3 conv over the patch grid, and spatially normalise the teacher features.
+    # Their Algorithm 1 is: nn.Conv2d(D_in, D_out, kernel_size=3, padding=1), then
+    #   x = x - gamma * x.mean(dim=1, keepdim=True)
+    #   x = x / (x.std(dim=1, keepdim=True) + 1e-6)
+    # with the statistics taken over the SPATIAL dimension, not the channels.
+    irepa_gamma: float = 0.7  # the gamma in the centring term above; the paper's
+    # Appendix G reports using gamma in [0.6, 0.8], i.e. the channel mean is only
+    # partly removed -- that mean carries the global semantic component they argue
+    # is NOT what transfers, so leaving some of it in is deliberate.
+    encoder: str = "dinov2"  # "dinov2" (ViT-B/14), "dinov3" (ViT-B/16),
+    # "pe_spatial" (PE-Spatial-B16) or "eupe" (EUPE ViT-B/16)
+    dinov3_model: Optional[str] = None  # HF id, used when encoder == "dinov3";
+    # None -> minidog.dinov3.DEFAULT_DINOV3_MODEL
+    pe_spatial_model: Optional[str] = None  # PE config name, used when encoder == "pe_spatial";
+    # None -> minidog.pe_spatial.DEFAULT_PE_SPATIAL_MODEL
+    pe_spatial_layernorm: bool = True  # parameter-free LayerNorm on PE patch tokens;
+    # PE-Spatial has no ln_post, and raw features are ~20x the DINOv2 scale
+    eupe_model: Optional[str] = None  # hub name, used when encoder == "eupe";
+    # None -> minidog.eupe.DEFAULT_EUPE_MODEL
+    eupe_strip_norm_affine: bool = True  # drop the final norm's learned scale/shift,
+    # matching the DINOv2/DINOv3 default
 
 
 @dataclass
@@ -194,5 +217,6 @@ class Stage2Config:
         if self.repa.use_repa:
             params.setdefault('enable_repa', True)
             params.setdefault('repa_layer_depth', self.repa.repa_layer_depth)
+            params.setdefault('irepa', self.repa.irepa)
             if self.repa.z_dim is not None:
                 params.setdefault('z_dim', self.repa.z_dim)

@@ -32,6 +32,13 @@ VAE_CONFIGS: Dict[str, VAEConfig] = {
         latent_channels=32,
         downsample_factor=16,
     ),
+    # Qwen-Image VAE, end-to-end tuned by REPA-E. Load with the QwenVAE class
+    # below, not VAE -- it is a video autoencoder with a temporal axis.
+    "e2e-qwen-vae": VAEConfig(
+        pretrained_path="REPA-E/e2e-qwenimage-vae",
+        latent_channels=16,
+        downsample_factor=8,
+    ),
 }
 
 
@@ -184,3 +191,51 @@ class VAE(nn.Module):
         z = self.encode(x)
         x_rec = self.decode(z)
         return x_rec
+
+
+class QwenVAE(VAE):
+    """Qwen-Image VAE wrapper.
+
+    Qwen-Image's autoencoder is a *video* model: diffusers exposes it as
+    AutoencoderKLQwenImage and it expects a temporal axis, (B, C, T, H, W).
+    This subclass loads that class instead of AutoencoderKL and feeds each
+    image as a single frame, squeezing the temporal axis back out so the rest
+    of minidog sees the usual (B, C, H, W) latents.
+
+    Everything else -- scaling/shift factors, normalization, the encode/decode
+    entry points -- is inherited from VAE unchanged.
+
+    Use with vae_type "e2e-qwen-vae" (16 channels, downsample 8), which gives
+    [16, 32, 32] latents at 256px. Pair it with a DiT at input_size 32 and
+    patch_size 2 so the token count stays at 16*16 = 256.
+    """
+
+    def _load_vae(self):
+        """Load the Qwen-Image VAE from pretrained weights."""
+        from diffusers import AutoencoderKLQwenImage
+
+        load_kwargs = {"subfolder": self._subfolder}
+        self.vae = AutoencoderKLQwenImage.from_pretrained(self._pretrained_path, **load_kwargs).eval()
+        for param in self.vae.parameters():
+            param.requires_grad = False
+
+    def _vae_encode(self, x: torch.Tensor):
+        x = x.unsqueeze(2)  # (B, C, H, W) -> (B, C, 1, H, W)
+        posterior = self.vae.encode(x).latent_dist
+        posterior.mean = posterior.mean.squeeze(2)
+        posterior.logvar = posterior.logvar.squeeze(2)
+        return posterior
+
+    # Qwen-Image's decoder uses 3D causal convs with a feature cache, so its
+    # intermediates are far larger than an image VAE's: decoding 64 latents at
+    # once (eval's micro_batch_size) needs >20GB and OOMs a 24GB card. Decode in
+    # fixed-size chunks instead, which is numerically identical -- samples are
+    # independent -- and caps peak memory regardless of the caller's batch size.
+    decode_chunk_size: int = 8
+
+    def _vae_decode(self, z: torch.Tensor) -> torch.Tensor:
+        outs = []
+        for i in range(0, z.shape[0], self.decode_chunk_size):
+            chunk = z[i:i + self.decode_chunk_size].unsqueeze(2)  # (b, C, H, W) -> (b, C, 1, H, W)
+            outs.append(self.vae.decode(chunk).sample.squeeze(2))
+        return torch.cat(outs, dim=0)

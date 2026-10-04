@@ -2,7 +2,7 @@
 
 Usage:
     uv run torchrun --standalone --nproc_per_node=4 -m minidog.offline_eval \\
-        --config configs/pretrain.yaml --checkpoint ckpts/pretrain/checkpoints/ep-0000200.pt
+        --config configs/pretrain_repa_dinov2_mse.yaml --checkpoint ckpts/pretrain/checkpoints/ep-0000200.pt
     # sweep the classifier-free-guidance scale on one checkpoint:
     ... --cfg-scale 1.5 2.0 3.0 6.0
 Also runs on a single GPU without torchrun (slower: all 26k samples on one device).

@@ -107,7 +107,8 @@ class Transport:
         return t, x0, x1
 
     def training_losses(self, model, x1, model_kwargs, model_kwargs_null,
-                        z_clean=None, repa_coeff=None, cfg_dropout_prob=0.1):
+                        z_clean=None, repa_coeff=None, repa_loss_type="mse", cfg_dropout_prob=0.1,
+                        irepa=False, irepa_gamma=1.0):
         """Flow-matching loss, plus the REPA alignment loss when z_clean and repa_coeff are given."""
         model_kwargs, _ = apply_cfg_dropout(model_kwargs, model_kwargs_null, cfg_dropout_prob)
 
@@ -122,7 +123,27 @@ class Transport:
             model_output = model(xt, t, **model_kwargs)
 
         terms = {'loss': self.compute_loss(model_output, vt, xt, t)}
-        terms['loss_repa'] = repa_coeff * F.mse_loss(zt_pred, z_clean) if enable_repa else torch.tensor(0.0, device=x1.device)
+        if enable_repa:
+            # "mse": what this repo has always used. "cosine": the objective the REPA
+            # (arXiv 2410.06940) and iREPA (arXiv 2512.10794) papers actually specify --
+            # per-token 1 - cos, averaged. Cosine divides out each vector's norm, so the
+            # teacher's feature scale no longer sets the effective loss weight.
+            if irepa:
+                # iREPA Alg. 1: normalise the external representation over the SPATIAL
+                # dimension (dim=1, the patch tokens), not over channels. This removes
+                # each channel's offset and scale, leaving the pairwise structure
+                # between patches -- which the paper argues is what actually transfers.
+                z_clean = z_clean - irepa_gamma * z_clean.mean(dim=1, keepdim=True)
+                z_clean = z_clean / (z_clean.std(dim=1, keepdim=True) + 1e-6)
+            if repa_loss_type == "cosine":
+                repa_term = (1.0 - F.cosine_similarity(zt_pred, z_clean, dim=-1)).mean()
+            elif repa_loss_type == "mse":
+                repa_term = F.mse_loss(zt_pred, z_clean)
+            else:
+                raise ValueError(f"unknown repa_loss_type: {repa_loss_type!r}")
+            terms['loss_repa'] = repa_coeff * repa_term
+        else:
+            terms['loss_repa'] = torch.tensor(0.0, device=x1.device)
         return terms
 
     def convert_model_pred(self, output, xt, t):

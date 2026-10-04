@@ -2,10 +2,10 @@
 
 Usage:
     uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \\
-        --config configs/pretrain.yaml --compile --wandb
+        --config configs/pretrain_repa_dinov2_mse.yaml --compile --wandb
     # SFT from a pretrained checkpoint:
     uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \\
-        --config configs/sft.yaml --ckpt ckpts/<pretrain-run>/checkpoints/ep-0000200.pt \\
+        --config configs/sft_eupe_norepa.yaml --ckpt ckpts/<pretrain-run>/checkpoints/ep-0000200.pt \\
         --init-weights-only --compile --wandb
 """
 
@@ -120,9 +120,33 @@ def main():
     repa_target_encoder = None
     if config.repa.use_repa:
         with main_process_first(rank):
-            repa_target_encoder = DINOv2Encoder(config.training.image_size).to(device)
+            if config.repa.encoder == "dinov3":
+                from minidog.dinov3 import DEFAULT_DINOV3_MODEL, DINOv3Encoder
+                repa_target_encoder = DINOv3Encoder(
+                    config.training.image_size, config.repa.dinov3_model or DEFAULT_DINOV3_MODEL
+                ).to(device)
+            elif config.repa.encoder == "pe_spatial":
+                from minidog.pe_spatial import DEFAULT_PE_SPATIAL_MODEL, PESpatialEncoder
+                repa_target_encoder = PESpatialEncoder(
+                    config.training.image_size,
+                    config.repa.pe_spatial_model or DEFAULT_PE_SPATIAL_MODEL,
+                    layernorm_features=config.repa.pe_spatial_layernorm,
+                ).to(device)
+            elif config.repa.encoder == "eupe":
+                from minidog.eupe import DEFAULT_EUPE_MODEL, EUPEEncoder
+                repa_target_encoder = EUPEEncoder(
+                    config.training.image_size,
+                    config.repa.eupe_model or DEFAULT_EUPE_MODEL,
+                    strip_norm_affine=config.repa.eupe_strip_norm_affine,
+                ).to(device)
+            elif config.repa.encoder == "dinov2":
+                repa_target_encoder = DINOv2Encoder(config.training.image_size).to(device)
+            else:
+                raise ValueError(f"unknown repa.encoder: {config.repa.encoder!r}")
         config.repa.z_dim = repa_target_encoder.embed_dim
-        logger.info(f"REPA target encoder: DINOv2 ViT-B/14, embed_dim={repa_target_encoder.embed_dim}")
+        logger.info(
+            f"REPA target encoder: {config.repa.encoder}, embed_dim={repa_target_encoder.embed_dim}"
+        )
 
     # text encoder for text conditioning; None if not using text conditioning
     text_encoder = setup_text_encoder(config, rank, device)

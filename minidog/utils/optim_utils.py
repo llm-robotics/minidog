@@ -29,7 +29,9 @@ def build_optimizer(
         msg = f"AdamW(lr={config.lr}, betas={config.betas}, wd={config.weight_decay})"
 
     else:
-        raise ValueError(f"Unsupported optimizer '{config.type}'; only 'adamw' is supported.")
+        raise ValueError(
+            f"Unsupported optimizer '{config.type}'; expected 'adamw'."
+        )
 
     return optimizer, msg
 

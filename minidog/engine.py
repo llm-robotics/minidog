@@ -131,21 +131,28 @@ def train_one_epoch(
         #########################################################
         model_kwargs = dict(context=context, attn_mask=context_attn_mask)
 
+        repa_on = config.repa.use_repa
+
         with autocast(**autocast_kwargs):
             loss_dict = transport.training_losses(
                 ddp_model, z, model_kwargs, model_kwargs_null,
                 z_clean=z_clean,
-                repa_coeff=config.repa.repa_coeff if config.repa.use_repa else None,
+                repa_coeff=config.repa.repa_coeff if repa_on else None,
+                repa_loss_type=config.repa.repa_loss_type,
                 cfg_dropout_prob=config.conditioning.cfg_dropout_prob,
+                irepa=config.repa.irepa,
+                irepa_gamma=config.repa.irepa_gamma,
             )
             loss_diff = loss_dict["loss"].mean()
             loss_repa = loss_dict["loss_repa"].mean()
-            loss = loss_diff + loss_repa if config.repa.use_repa else loss_diff
+            loss = loss_diff + loss_repa if repa_on else loss_diff
 
         loss = loss / config.training.grad_accum_steps
 
         is_accum_step = (step + 1) % config.training.grad_accum_steps != 0
+
         if is_accum_step:
+
             with ddp_model.no_sync():
                 loss.backward()
         else:

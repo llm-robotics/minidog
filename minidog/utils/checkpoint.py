@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Optional, Tuple
 
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import LambdaLR
+
+logger = logging.getLogger('minidog')
 
 
 def save_stage2_checkpoint(
@@ -49,6 +52,27 @@ def load_stage2_checkpoint(
     return checkpoint.get("epoch", 0), checkpoint.get("step", 0)
 
 
+def _drop_absent_projector(state_dict: dict, model: torch.nn.Module, path: str) -> dict:
+    """Drop the alignment projector when the target model does not have one.
+
+    Fine-tuning with repa.use_repa = false builds a model with no repa_projector, while
+    the pretrained checkpoint still carries one. The projector is only ever used to
+    compute the alignment loss, so a run that does not align has no use for those
+    weights. We drop exactly those keys rather than loading non-strictly, so every
+    other mismatch still raises.
+    """
+    if any(k.startswith("repa_projector.") for k in model.state_dict()):
+        return state_dict
+    extra = [k for k in state_dict if k.startswith("repa_projector.")]
+    if extra:
+        logger.info(
+            f"Dropping {len(extra)} alignment-projector tensor(s) from {path}: "
+            "this run does not use representation alignment."
+        )
+        state_dict = {k: v for k, v in state_dict.items() if k not in extra}
+    return state_dict
+
+
 def load_stage2_weights_only(
     path: str,
     model: DDP,
@@ -61,8 +85,8 @@ def load_stage2_weights_only(
     different from the checkpoint's original run for its saved scheduler state to make sense.
     """
     checkpoint = torch.load(path, map_location="cpu")
-    model.module.load_state_dict(checkpoint["model"])
-    ema_model.load_state_dict(checkpoint["ema"])
+    model.module.load_state_dict(_drop_absent_projector(checkpoint["model"], model.module, path))
+    ema_model.load_state_dict(_drop_absent_projector(checkpoint["ema"], ema_model, path))
 
 
 __all__ = [

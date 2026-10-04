@@ -1,33 +1,42 @@
-"""Pre-compute and cache VAE latents, text embeddings, and DINOv2 features.
+"""Pre-compute and cache VAE latents, text embeddings, and DINOv3 features.
+
+A DINOv3 twin of minidog/precompute_latents.py, which is left untouched. Same
+inputs, same output layout, same shard naming -- the only difference is that the
+REPA target features come from DINOv3 ViT-B/16 instead of DINOv2 ViT-B/14, and
+are stored under their own key.
 
 Reads existing WDS shards (jpg + txt), encodes everything with frozen models,
 and writes new WDS shards where each sample contains:
   - latent.npy   : VAE latent  [C, H, W]  float16
   - tokens.npy   : text token embeddings  [seq_len, dim]  float16
   - attn_mask.npy: attention mask          [seq_len]       bool
-  - dinov2.npy   : DINOv2 patch tokens   [num_patches, dim]  float16  (only if RePA)
+  - dinov3.npy   : DINOv3 patch tokens   [num_patches, dim]  float16  (only if RePA)
   - txt          : original caption (kept for reference)
 
+data.py reads dinov3.npy as the REPA target when it is present, and dinov2.npy
+otherwise, so the two sets of shards are interchangeable at training time: point
+dataset.data_dir at whichever directory you want.
+
 Single-GPU usage:
-    uv run python -m minidog.precompute_latents \
-        --config configs/pretrain_repa_dinov2_mse.yaml \
+    uv run python -m minidog.precompute_latents_dinov3 \
+        --config configs/pretrain_repa_dinov3_mse.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
-        --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae \
+        --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae_dinov3 \
         --batch-size 16
 
 Multi-GPU usage (recommended, splits shards across GPUs):
-    uv run torchrun --nproc_per_node=8 -m minidog.precompute_latents \
-        --config configs/pretrain_repa_dinov2_mse.yaml \
+    uv run torchrun --nproc_per_node=8 -m minidog.precompute_latents_dinov3 \
+        --config configs/pretrain_repa_dinov3_mse.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
-        --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae \
+        --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae_dinov3 \
         --batch-size 16
 """
 
 import argparse
 import io
+import json
 import math
 import os
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -38,24 +47,12 @@ from omegaconf import OmegaConf
 from torchvision import transforms
 from tqdm import tqdm
 
-
 from minidog.config import Stage2Config
-from minidog.dinov2 import DINOv2Encoder
+from minidog.dinov3 import DEFAULT_DINOV3_MODEL, DINOv3Encoder
+from minidog.precompute_latents import encode_batch_text, to_fp16_numpy
 from minidog.transport import setup_text_encoder
 from minidog.utils.dist_utils import main_process_first
 from minidog.utils.model_utils import instantiate_from_config
-
-
-def to_fp16_numpy(t: torch.Tensor) -> np.ndarray:
-    return t.cpu().to(torch.float16).numpy()
-
-
-def encode_batch_text(text_encoder, captions):
-    with torch.no_grad():
-        out = text_encoder(captions)
-    tokens = out["tokens"]             # [B, seq_len, dim]
-    attn_mask = out["attention_mask"]  # [B, seq_len]
-    return tokens, attn_mask
 
 
 def main():
@@ -65,6 +62,8 @@ def main():
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--samples-per-shard", type=int, default=500)
+    parser.add_argument("--dinov3-model", default=None,
+                        help=f"HF model id for DINOv3; default {DEFAULT_DINOV3_MODEL}")
     args = parser.parse_args()
 
     # ------------------------------------------------------------------ #
@@ -115,12 +114,31 @@ def main():
         print("Loading text encoder...")
     text_encoder = setup_text_encoder(cfg, rank=rank, device=device)
 
-    repa_encoder = None
+    dinov3_model_id = args.dinov3_model or cfg.repa.dinov3_model or DEFAULT_DINOV3_MODEL
+    dinov3_encoder = None
     if cfg.repa.use_repa:
         if rank == 0:
-            print("Loading DINOv2 ViT-B/14...")
-        with main_process_first(rank):  # rank 0 downloads the torch.hub repo + weights; others reuse the cache
-            repa_encoder = DINOv2Encoder(cfg.training.image_size).to(device)
+            print(f"Loading DINOv3 {dinov3_model_id} ...")
+        with main_process_first(rank):  # rank 0 populates the HF cache; other ranks reuse it
+            dinov3_encoder = DINOv3Encoder(cfg.training.image_size, dinov3_model_id).to(device)
+        if rank == 0:
+            print(f"  DINOv3 embed_dim={dinov3_encoder.embed_dim} "
+                  f"patch_size={dinov3_encoder.patch_size} "
+                  f"input_size={dinov3_encoder.input_size} "
+                  f"-> {dinov3_encoder.num_patch_tokens} patch tokens")
+
+        # The DiT consumes (latent_h * latent_w) tokens at patch_size=1; the REPA
+        # target must match exactly or the MSE in transport.py fails. Check now
+        # rather than after an hour of encoding.
+        _, latent_h, latent_w = cfg.misc.latent_size
+        dit_patch = cfg.stage_2.params["patch_size"]
+        dit_tokens = (latent_h // dit_patch) * (latent_w // dit_patch)
+        if dinov3_encoder.num_patch_tokens != dit_tokens:
+            raise ValueError(
+                f"token count mismatch: DINOv3 gives {dinov3_encoder.num_patch_tokens} tokens "
+                f"({dinov3_encoder.input_size}/{dinov3_encoder.patch_size} per side) but the DiT "
+                f"expects {dit_tokens}"
+            )
 
     # ------------------------------------------------------------------ #
     # Image transform
@@ -177,11 +195,11 @@ def main():
             images = torch.stack(images_list).to(device)
 
             with torch.no_grad():
-                latents = vae.encode(images)                              # [B, C, H, W]
+                latents = vae.encode(images)                                   # [B, C, H, W]
                 tokens, attn_mask = encode_batch_text(text_encoder, captions)  # [B, seq, dim], [B, seq]
-                dinov2_feats = None
-                if repa_encoder is not None:
-                    dinov2_feats = repa_encoder(images * 255.0)            # [B, num_patches, dim]
+                dinov3_feats = None
+                if dinov3_encoder is not None:
+                    dinov3_feats = dinov3_encoder(images * 255.0)              # [B, num_patches, dim]
 
             for i in range(len(batch)):
                 sample = {
@@ -198,9 +216,9 @@ def main():
                 buf = io.BytesIO(); np.save(buf, attn_mask[i].cpu().bool().numpy())
                 sample["attn_mask.npy"] = buf.getvalue()
 
-                if dinov2_feats is not None:
-                    buf = io.BytesIO(); np.save(buf, to_fp16_numpy(dinov2_feats[i]))
-                    sample["dinov2.npy"] = buf.getvalue()
+                if dinov3_feats is not None:
+                    buf = io.BytesIO(); np.save(buf, to_fp16_numpy(dinov3_feats[i]))
+                    sample["dinov3.npy"] = buf.getvalue()
 
                 sink.write(sample)
                 total_written += 1
@@ -211,7 +229,20 @@ def main():
         dist.barrier()
     if rank == 0:
         total_shards = len(list(output_dir.glob("*.tar")))
+        (output_dir / "_manifest.json").write_text(json.dumps({
+            "repa_target": "dinov3",
+            "repa_key": "dinov3.npy",
+            "dinov3_model": dinov3_model_id if dinov3_encoder is not None else None,
+            "dinov3_embed_dim": dinov3_encoder.embed_dim if dinov3_encoder is not None else None,
+            "dinov3_patch_tokens": dinov3_encoder.num_patch_tokens if dinov3_encoder is not None else None,
+            "vae_type": cfg.stage_1.params.get("vae_type"),
+            "text_encoder": cfg.conditioning.text_encoder.model_name,
+            "max_length": cfg.conditioning.text_encoder.max_length,
+            "image_size": image_size,
+            "source_dir": str(input_dir),
+        }, indent=2))
         print(f"\nAll ranks finished. Total output shards: {total_shards} in {output_dir}")
+        print(f"Wrote {output_dir / '_manifest.json'}")
         dist.destroy_process_group() if world_size > 1 else None
 
 

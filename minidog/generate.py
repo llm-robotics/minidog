@@ -6,7 +6,7 @@ fine-tuned checkpoint on the same captions (e.g. pretrain vs. dogs-SFT).
 
 Usage:
     uv run python -m minidog.generate \
-        --config configs/pretrain.yaml \
+        --config configs/pretrain_repa_dinov2_mse.yaml \
         --checkpoint ckpts/<run-name>/checkpoints/ep-0000200.pt \
         --captions-json /path/to/captions.json \
         --output-dir results/dog_comparison/pretrained \
@@ -108,6 +108,26 @@ def main(args):
 
     os.makedirs(args.output_dir, exist_ok=True)
 
+    # When --noise-file is given, the initial noise for all captions is drawn once on
+    # CPU (so it does not depend on the CUDA RNG stream, which other ops may consume)
+    # and cached on disk. A second run pointed at the same file reuses it, so two
+    # checkpoints can be compared with the caption AND the noise held fixed.
+    all_zs = None
+    if args.noise_file:
+        if os.path.exists(args.noise_file):
+            all_zs = torch.load(args.noise_file, map_location="cpu")
+            if tuple(all_zs.shape) != (len(items), *latent_size):
+                raise ValueError(
+                    f"{args.noise_file} holds noise of shape {tuple(all_zs.shape)}, "
+                    f"but this run needs {(len(items), *latent_size)}"
+                )
+            print(f"Loaded shared noise from {args.noise_file}")
+        else:
+            all_zs = torch.randn(len(items), *latent_size, dtype=torch.float32)
+            os.makedirs(os.path.dirname(os.path.abspath(args.noise_file)), exist_ok=True)
+            torch.save(all_zs, args.noise_file)
+            print(f"Drew and saved shared noise to {args.noise_file} (seed {seed})")
+
     batch_size = args.batch_size
     for start in range(0, len(items), batch_size):
         batch = items[start:start + batch_size]
@@ -115,7 +135,10 @@ def main(args):
         n = len(prompts)
 
         context, attn_mask = encode_text(text_encoder, prompts)
-        zs = torch.randn(n, *latent_size, device=device, dtype=torch.float32)
+        if all_zs is not None:
+            zs = all_zs[start:start + n].to(device=device, dtype=torch.float32)
+        else:
+            zs = torch.randn(n, *latent_size, device=device, dtype=torch.float32)
 
         if use_guidance:
             zs_in = torch.cat([zs, zs], dim=0)
@@ -159,6 +182,10 @@ if __name__ == "__main__":
     parser.add_argument("--num-steps", type=int, default=None, help="Override sampler.num_steps from config.")
     parser.add_argument("--batch-size", type=int, default=20)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--noise-file", type=str, default=None,
+                         help="Cache of the initial noise for every caption. Created on first use, "
+                              "reused afterwards -- pass the same file to two runs to compare "
+                              "checkpoints on identical captions and identical noise.")
     parser.add_argument("--group-by-breed", action="store_true",
                          help="Write outputs to output_dir/{breed}/{breed}_{stem}.png instead of "
                               "flat output_dir/{breed}_{stem}.png -- matches a per-breed caption "

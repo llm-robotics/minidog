@@ -148,6 +148,7 @@ class LightningDiT(nn.Module):
         num_heads=16,
         mlp_ratio=4.0,
         enable_repa=False,
+        irepa=False,
         repa_layer_depth=8,
         z_dim=None,
         context_dim=768,
@@ -174,8 +175,16 @@ class LightningDiT(nn.Module):
 
         self.final_layer = LightningFinalLayer(self.hidden_size, self.patch_size, self.in_channels)
         self.rope = RoPE(self.hidden_size // num_heads, self.x_embedder.num_patches, self.num_cond_tokens)
+        self.irepa = irepa
         if enable_repa:
-            self.repa_projector = nn.Linear(self.hidden_size, z_dim)
+            if irepa:
+                # iREPA (arXiv:2512.10794) Alg. 1: a 3x3 conv over the patch grid in
+                # place of the projection layer, so the projector can see each token's
+                # neighbours and spatial structure survives the projection.
+                self.repa_projector = nn.Conv2d(self.hidden_size, z_dim,
+                                                kernel_size=3, padding=1)
+            else:
+                self.repa_projector = nn.Linear(self.hidden_size, z_dim)
 
         self.initialize_weights()
 
@@ -225,7 +234,15 @@ class LightningDiT(nn.Module):
         for i, block in enumerate(self.blocks):
             x = block(x, self.rope, attn_mask)
             if return_intermediate and (i + 1) == self.repa_layer_depth:
-                zt_intermediate = self.repa_projector(x[:, :n, :])
+                feats = x[:, :n, :]                                  # (B, N, C)
+                if self.irepa:
+                    g = int(n ** 0.5)                                # 16x16 patch grid
+                    B, _, C = feats.shape
+                    feats = feats.transpose(1, 2).reshape(B, C, g, g)
+                    feats = self.repa_projector(feats)               # (B, z_dim, g, g)
+                    zt_intermediate = feats.flatten(2).transpose(1, 2)
+                else:
+                    zt_intermediate = self.repa_projector(feats)
 
         x = self.final_layer(x[:, :n, :])
         x = self.unpatchify(x)

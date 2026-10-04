@@ -177,10 +177,18 @@ class DogsLatentsWebDataset:
         latent.npy      [C, H, W]              float16 → float32
         tokens.npy      [seq_len, dim]          float16 → float32
         attn_mask.npy   [seq_len]               bool
-        dinov2.npy      [num_patches, dim]      float16 → float32 (present when RePA was used)
+        dinov2.npy      [num_patches, dim]      float16 → float32 (DINOv2 ViT-B/14 REPA target)
+        dinov3.npy      [num_patches, dim]      float16 → float32 (DINOv3 ViT-B/16 REPA target)
+        pe_spatial.npy  [num_patches, dim]      float16 → float32 (PE-Spatial-B16 REPA target)
+        eupe.npy        [num_patches, dim]      float16 → float32 (EUPE ViT-B/16 REPA target)
 
-    Returns (latent, tokens, attn_mask, dinov2) tuples where dinov2 is a zero tensor
-    (shape [1]) when not present, so WebLoader can collate homogeneously.
+    A directory holds exactly one of dinov2.npy, dinov3.npy, pe_spatial.npy or
+    eupe.npy,
+    depending on which precompute script produced it.
+
+    Returns (latent, tokens, attn_mask, dino_features) tuples where dino_features is a
+    zero tensor (shape [1]) when neither is present, so WebLoader can collate
+    homogeneously.
     """
 
     def __init__(self, data_dir: str, shuffle_buffer: int = 5000, seed: int = 42):
@@ -208,11 +216,21 @@ class DogsLatentsWebDataset:
             latent = torch.from_numpy(np.load(io.BytesIO(sample["latent.npy"])).astype(np.float32))
             tokens = torch.from_numpy(np.load(io.BytesIO(sample["tokens.npy"])).astype(np.float32))
             attn_mask = torch.from_numpy(np.load(io.BytesIO(sample["attn_mask.npy"])))
+            # DINO patch features used as the REPA target.
+            # dinov2.npy is written by minidog.precompute_latents (DINOv2 ViT-B/14).
+            # dinov3.npy is written by minidog.precompute_latents_dinov3 (DINOv3 ViT-B/16).
+            # A shard directory contains one or the other, never both.
             if "dinov2.npy" in sample:
-                dinov2 = torch.from_numpy(np.load(io.BytesIO(sample["dinov2.npy"])).astype(np.float32))
+                dino_features = torch.from_numpy(np.load(io.BytesIO(sample["dinov2.npy"])).astype(np.float32))
+            elif "dinov3.npy" in sample:
+                dino_features = torch.from_numpy(np.load(io.BytesIO(sample["dinov3.npy"])).astype(np.float32))
+            elif "pe_spatial.npy" in sample:
+                dino_features = torch.from_numpy(np.load(io.BytesIO(sample["pe_spatial.npy"])).astype(np.float32))
+            elif "eupe.npy" in sample:
+                dino_features = torch.from_numpy(np.load(io.BytesIO(sample["eupe.npy"])).astype(np.float32))
             else:
-                dinov2 = torch.zeros(1)
-            return latent, tokens, attn_mask, dinov2
+                dino_features = torch.zeros(1)
+            return latent, tokens, attn_mask, dino_features
         except Exception:
             return None
 
