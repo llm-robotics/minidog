@@ -33,12 +33,12 @@ cached with the matching `minidog.precompute_latents_{dinov3,pe_spatial,eupe}` s
 
 | Config | VAE | REPA | Caption tokens | FID |
 |---|---|---|---|---|
-| `ablations/e2e-invae-norepa-128tok.yaml` | E2E-INVAE | no | 128 | 11.47 |
-| `ablations/e2e-invae-norepa-64tok.yaml` | E2E-INVAE | no | 64 | 12.70 |
-| `ablations/e2e-vavae-norepa-128tok.yaml` | E2E-VAVAE | no | 128 | 14.40 |
-| `ablations/e2e-vavae-norepa-64tok.yaml` | E2E-VAVAE | no | 64 | 16.72 |
-| `ablations/e2e-invae-repa-64tok.yaml` | E2E-INVAE | yes | 64 | not reported |
-| `ablations/e2e-vavae-repa-{128,64}tok.yaml` | E2E-VAVAE | yes | 128 / 64 | not reported |
+| `e2e-invae-norepa-128tok.yaml` | E2E-INVAE | no | 128 | 11.47 |
+| `e2e-invae-norepa-64tok.yaml` | E2E-INVAE | no | 64 | 12.70 |
+| `e2e-vavae-norepa-128tok.yaml` | E2E-VAVAE | no | 128 | 14.40 |
+| `e2e-vavae-norepa-64tok.yaml` | E2E-VAVAE | no | 64 | 16.72 |
+| `e2e-invae-repa-64tok.yaml` | E2E-INVAE | yes | 64 | not reported |
+| `e2e-vavae-repa-{128,64}tok.yaml` | E2E-VAVAE | yes | 128 / 64 | not reported |
 
 The four `norepa` rows are the tokenizer x caption-length sweep of Lessons 1-2; the three `repa`
 rows complete the grid but are not reported in the paper. `norepa` configs reuse their `repa`

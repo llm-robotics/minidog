@@ -51,17 +51,17 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eu
     --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae_eupe
 
 # e2e-invae-*-64tok
-$PRE --config configs/ablations/e2e-invae-repa-64tok.yaml \
+$PRE --config configs/e2e-invae-repa-64tok.yaml \
     --input-dir $DATA/dogs_recaptioned_64tok_wds \
     --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae
 
 # e2e-vavae-*-128tok
-$PRE --config configs/ablations/e2e-vavae-repa-128tok.yaml \
+$PRE --config configs/e2e-vavae-repa-128tok.yaml \
     --input-dir $DATA/dogs_recaptioned_wds \
     --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae
 
 # e2e-vavae-*-64tok
-$PRE --config configs/ablations/e2e-vavae-repa-64tok.yaml \
+$PRE --config configs/e2e-vavae-repa-64tok.yaml \
     --input-dir $DATA/dogs_recaptioned_64tok_wds \
     --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae
 ```
@@ -104,13 +104,13 @@ One yaml per experiment; hyperparameters and reported FID in [`configs/README.md
 
 - `pretrain_irepa_eupe_mse.yaml`, `sft_eupe_norepa.yaml`: the final recipe.
 - `pretrain_repa_dinov2_mse.yaml`: the REPA/DINOv2 baseline the lessons build up to.
-- `ablations/e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml`: the tokenizer x REPA x caption-length grid.
+- `e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml`: the tokenizer x REPA x caption-length grid.
 - Each config reads the latents for its tokenizer and caption length (Preprocess step). `norepa` configs reuse their `repa` sibling's latents.
 
 To train any config, point `--config` at it and name the run after it:
 
 ```bash
-CONFIG=configs/ablations/e2e-invae-norepa-128tok.yaml
+CONFIG=configs/e2e-invae-norepa-128tok.yaml
 export EXPERIMENT_NAME=$(basename $CONFIG .yaml)
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFIG --compile
 ```
