@@ -83,19 +83,8 @@ eval:
       reference_npz: 'data/dog-t2i-diffusion-data/dogs_recaptioned_stats.npz'
 
 repa:
-  use_repa: false        # no alignment during SFT. The projector is never built, so
-                         # nothing goes unused under DDP find_unused_parameters=False,
-                         # and the teacher encoder is not instantiated at all.
-                         # Requires a --ckpt with repa_projector.* stripped (see
-                         # /data2/rey/ckpts/sft-seeds/), since the load is strict.
-  repa_layer_depth: 4
-  repa_coeff: 0.5
-  irepa: true            # iREPA: 3x3 conv projector + spatial normalisation
-  irepa_gamma: 0.7           # paper Appendix G: gamma in [0.6, 0.8]
-  encoder: eupe              # EUPE ViT-B/16, last block; 768-dim like the DINO ViT-Bs
-  eupe_model: eupe_vitb16
-  eupe_strip_norm_affine: true   # match the DINOv2/DINOv3 default
-
+  use_repa: false 
+  
 misc:
   latent_size: [32, 16, 16]
   num_classes: 1000

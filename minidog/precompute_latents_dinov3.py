@@ -19,14 +19,14 @@ dataset.data_dir at whichever directory you want.
 
 Single-GPU usage:
     uv run python -m minidog.precompute_latents_dinov3 \
-        --config configs/pretrain_repa_dinov3_mse.yaml \
+        --config configs/pretrain_e2e-invae_128tok_mse_repa_dinov3.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
         --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae_dinov3 \
         --batch-size 16
 
 Multi-GPU usage (recommended, splits shards across GPUs):
     uv run torchrun --nproc_per_node=8 -m minidog.precompute_latents_dinov3 \
-        --config configs/pretrain_repa_dinov3_mse.yaml \
+        --config configs/pretrain_e2e-invae_128tok_mse_repa_dinov3.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
         --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae_dinov3 \
         --batch-size 16

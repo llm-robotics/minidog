@@ -1,9 +1,10 @@
 # MiniDog: the text-to-image pipeline
 
-Dog-breed text-to-image generation on 4 GPUs: a 12-layer LightningDiT trained with flow matching on
-frozen-VAE latents, conditioned on Qwen3-0.6B captions, with representation alignment to a frozen
-vision encoder. The final recipe aligns to EUPE with iREPA and reaches FID 8.32; the lessons build up
-to it from REPA with DINOv2 (FID 8.80). All commands run from the repo root.
+Dog-breed text-to-image generation on 4 GPUs: a 12-layer, 22M-parameter LightningDiT trained with flow
+matching on frozen-VAE latents, conditioned on Qwen3-0.6B captions, with representation alignment to a
+frozen vision encoder. The final recipe (E2E-INVAE tokenizer, 128-token captions, iREPA with EUPE,
+squared error) reaches FID 8.32; each comparison in the paper changes one setting of it. All commands
+run from the repo root.
 
 ## Setup
 
@@ -28,68 +29,91 @@ uv run python -m minidog.fid_stats \
     --data-dir $DATA/dogs_recaptioned_wds \
     --output $DATA/dogs_recaptioned_stats.npz
 
-# cache VAE latents, text embeddings and the alignment target's features. The config picks the
-# tokenizer and the caption length; each (tokenizer, caption length, target) triple gets its own
-# latents folder. Swap in precompute_latents_{dinov3,pe_spatial,eupe} for the other targets.
-PRE="uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents"
+# Cache VAE latents, text embeddings and the alignment target's features. The config picks the
+# tokenizer, the caption length and the target; each combination gets its own latents folder,
+# which is the config's dataset.data_dir.
+EUPE="uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe"
 
-# final recipe: EUPE features on the 26k pretraining set
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe \
-    --config configs/pretrain_irepa_eupe_mse.yaml \
+# final recipe: E2E-INVAE latents + EUPE features of the 26k pretraining images
+$EUPE --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml \
     --input-dir $DATA/dogs_recaptioned_wds \
     --output-dir $DATA/dogs_recaptioned_latents_e2e-invae_eupe
 
-# DINOv2 baseline + e2e-invae-*-128tok ablations
-$PRE --config configs/pretrain_repa_dinov2_mse.yaml \
-    --input-dir $DATA/dogs_recaptioned_wds \
-    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae
-
-# sft (EUPE features: the final recipe fine-tunes the EUPE/iREPA checkpoint)
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe \
-    --config configs/sft_eupe_norepa.yaml \
+# SFT: latents and text embeddings of the 2k synthetic images (alignment is off, so no features)
+$EUPE --config configs/sft_e2e-invae_128tok_mse_norepa.yaml \
     --input-dir $DATA/dogs_synthetic_2k_wds \
     --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae_eupe
+```
 
-# e2e-invae-*-64tok
-$PRE --config configs/e2e-invae-repa-64tok.yaml \
+The two commands above cover the pretrain and SFT walkthrough. The lessons need these as well:
+
+```bash
+# Lesson 1, tokenizer: E2E-VAVAE latents + EUPE features
+$EUPE --config configs/pretrain_e2e-vavae_128tok_mse_irepa_eupe.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds \
+    --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae_eupe
+
+# Lesson 2, captions: the 64-token captions
+$EUPE --config configs/pretrain_e2e-invae_64tok_mse_irepa_eupe.yaml \
+    --input-dir $DATA/dogs_recaptioned_64tok_wds \
+    --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae_eupe
+
+# Lessons 3-4, alignment and target: DINOv2 features (the no-alignment run reads this folder too),
+# then DINOv3 and PE-Spatial. The EUPE runs reuse the final recipe's folder.
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents \
+    --config configs/pretrain_e2e-invae_128tok_mse_repa_dinov2.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds \
+    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_dinov3 \
+    --config configs/pretrain_e2e-invae_128tok_mse_repa_dinov3.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds \
+    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae_dinov3
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_pe_spatial \
+    --config configs/pretrain_e2e-invae_128tok_mse_repa_pe-spatial.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds \
+    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae_pe_spatial
+
+# Extra configs not reported in the paper (DINOv2 features)
+PRE="uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents"
+$PRE --config configs/pretrain_e2e-invae_64tok_mse_repa_dinov2.yaml \
     --input-dir $DATA/dogs_recaptioned_64tok_wds \
     --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-invae
-
-# e2e-vavae-*-128tok
-$PRE --config configs/e2e-vavae-repa-128tok.yaml \
+$PRE --config configs/pretrain_e2e-vavae_128tok_mse_repa_dinov2.yaml \
     --input-dir $DATA/dogs_recaptioned_wds \
     --output-dir $DATA/dogs_recaptioned_latents_e2e-vavae
-
-# e2e-vavae-*-64tok
-$PRE --config configs/e2e-vavae-repa-64tok.yaml \
+$PRE --config configs/pretrain_e2e-vavae_64tok_mse_repa_dinov2.yaml \
     --input-dir $DATA/dogs_recaptioned_64tok_wds \
     --output-dir $DATA/dogs_recaptioned_64tok_latents_e2e-vavae
 ```
 
-The first two blocks cover the pretrain and SFT walkthrough; the rest are for the ablations only.
 Each takes a few minutes on 4 GPUs. Re-running into an existing folder replaces its shards, and any
-GPU count works.
+GPU count works. `norepa` configs reuse the folder of a sibling config with the same tokenizer and
+caption length.
 
 ## Train
 
 ```bash
-# pretrain, final recipe: EUPE with iREPA (FID 8.32)
+# pretrain, final recipe: iREPA with EUPE (FID 8.32)
 export EXPERIMENT_NAME=pretrain
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
-    --config configs/pretrain_irepa_eupe_mse.yaml \
+    --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml \
     --compile
 
 # fine-tune that checkpoint, with no alignment during SFT
 export EXPERIMENT_NAME=sft
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
-    --config configs/sft_eupe_norepa.yaml \
+    --config configs/sft_e2e-invae_128tok_mse_norepa.yaml \
     --compile \
     --ckpt ckpts/pretrain/checkpoints/ep-0000200.pt \
     --init-weights-only
 ```
 
+- On 4 RTX 3090s, pretraining takes 55 minutes and SFT 15 minutes, not counting the FID evaluation
+  during training. That evaluation runs every `eval.eval_interval` steps (5,000 for pretraining, 150
+  for SFT), doubles the pretraining time and adds about an hour to SFT; set `eval.eval_interval: 0` to
+  turn it off.
 - Outputs: checkpoints and sample grids in `ckpts/$EXPERIMENT_NAME/`, FID/IS in `results/evals/`.
-- FID/IS are logged every `eval.eval_interval` steps. To score one checkpoint, or sweep the CFG scale:
+- To score one checkpoint, or sweep the CFG scale:
 
   ```bash
   uv run torchrun --standalone --nproc_per_node=4 -m minidog.offline_eval --config <cfg> --checkpoint <ckpt> --cfg-scale 1.5 2.0 6.0
@@ -100,17 +124,24 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
 
 ## Configs
 
-One yaml per experiment; hyperparameters and reported FID in [`configs/README.md`](../configs/README.md).
+One yaml per experiment, named `{stage}_{tokenizer}_{caption length}_{loss}_{alignment}_{target}.yaml`.
+Hyperparameters and reported FIDs are in [`configs/README.md`](../configs/README.md).
 
-- `pretrain_irepa_eupe_mse.yaml`, `sft_eupe_norepa.yaml`: the final recipe.
-- `pretrain_repa_dinov2_mse.yaml`: the REPA/DINOv2 baseline the lessons build up to.
-- `e2e-{invae,vavae}-{repa,norepa}-{128,64}tok.yaml`: the tokenizer x REPA x caption-length grid.
-- Each config reads the latents for its tokenizer and caption length (Preprocess step). `norepa` configs reuse their `repa` sibling's latents.
+| Field | Values |
+|---|---|
+| stage | `pretrain`, `sft` |
+| tokenizer | `e2e-invae`, `e2e-vavae` |
+| caption length | `128tok`, `64tok` |
+| loss | `mse` (squared error) or `cosine`: the alignment distance. `norepa` runs use `mse`, the flow-matching loss |
+| alignment | `irepa`, `repa`, `norepa` |
+| target | `dinov2`, `dinov3`, `pe-spatial`, `eupe`; left out for `norepa` |
 
-To train any config, point `--config` at it and name the run after it:
+The final recipe is `pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml` followed by
+`sft_e2e-invae_128tok_mse_norepa.yaml`. To train any config, point `--config` at it and name the run
+after it:
 
 ```bash
-CONFIG=configs/e2e-invae-norepa-128tok.yaml
+CONFIG=configs/pretrain_e2e-invae_128tok_mse_norepa.yaml
 export EXPERIMENT_NAME=$(basename $CONFIG .yaml)
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFIG --compile
 ```
@@ -120,7 +151,7 @@ uv run torchrun --standalone --nproc_per_node=4 -m minidog.train --config $CONFI
 Sample the 500 evaluation captions from two checkpoints, then compare the two folders with PickScore and HPSv2:
 
 ```bash
-for RUN in "pretrain configs/pretrain_irepa_eupe_mse.yaml" "sft configs/sft_eupe_norepa.yaml"; do
+for RUN in "pretrain configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml" "sft configs/sft_e2e-invae_128tok_mse_norepa.yaml"; do
   set -- $RUN
   uv run python -m minidog.generate \
       --config $2 \
@@ -142,7 +173,7 @@ and prints PickScore win rate and HPSv2 means, per breed and overall.
 | | Files | What |
 |---|---|---|
 | Model and objective | [`dit.py`](dit.py), [`transport.py`](transport.py) | LightningDiT; flow matching, Euler sampler, CFG |
-| Frozen components | [`vae.py`](vae.py), [`text_encoder.py`](text_encoder.py), [`dinov2.py`](dinov2.py) | tokenizer, Qwen3 captions, REPA target |
+| Frozen components | [`vae.py`](vae.py), [`text_encoder.py`](text_encoder.py), [`eupe.py`](eupe.py), [`dinov2.py`](dinov2.py), [`dinov3.py`](dinov3.py), [`pe_spatial.py`](pe_spatial.py) | tokenizer, Qwen3 captions, the four target representations |
 | Training | [`engine.py`](engine.py), [`data.py`](data.py), [`eval.py`](eval.py), [`config.py`](config.py) | epoch loop, loaders, FID/IS, config dataclasses |
-| Entry points | [`precompute_latents`](precompute_latents.py), [`fid_stats`](fid_stats.py), [`train`](train.py), [`offline_eval`](offline_eval.py), [`generate`](generate.py), [`score`](score.py) | `python -m minidog.<name>`, in pipeline order |
+| Entry points | [`precompute_latents`](precompute_latents.py) (and `_eupe`, `_dinov3`, `_pe_spatial`), [`fid_stats`](fid_stats.py), [`train`](train.py), [`offline_eval`](offline_eval.py), [`generate`](generate.py), [`score_absolute`](score_absolute.py), [`score`](score.py) | `python -m minidog.<name>`, in pipeline order |
 | Utilities | [`utils/`](utils/) | checkpoints, distributed, optimizer, resume, W&B |

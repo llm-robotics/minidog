@@ -10,14 +10,14 @@ and writes new WDS shards where each sample contains:
 
 Single-GPU usage:
     uv run python -m minidog.precompute_latents \
-        --config configs/pretrain_repa_dinov2_mse.yaml \
+        --config configs/pretrain_e2e-invae_128tok_mse_repa_dinov2.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
         --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae \
         --batch-size 16
 
 Multi-GPU usage (recommended, splits shards across GPUs):
     uv run torchrun --nproc_per_node=8 -m minidog.precompute_latents \
-        --config configs/pretrain_repa_dinov2_mse.yaml \
+        --config configs/pretrain_e2e-invae_128tok_mse_repa_dinov2.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
         --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae \
         --batch-size 16

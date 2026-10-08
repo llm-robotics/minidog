@@ -19,14 +19,14 @@ are interchangeable at training time: point dataset.data_dir at the one you want
 
 Single-GPU usage:
     uv run python -m minidog.precompute_latents_pe_spatial \
-        --config configs/pretrain_repa_pe_spatial_mse.yaml \
+        --config configs/pretrain_e2e-invae_128tok_mse_repa_pe-spatial.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
         --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae_pe_spatial \
         --batch-size 16
 
 Multi-GPU usage (recommended, splits shards across GPUs):
     uv run torchrun --nproc_per_node=8 -m minidog.precompute_latents_pe_spatial \
-        --config configs/pretrain_repa_pe_spatial_mse.yaml \
+        --config configs/pretrain_e2e-invae_128tok_mse_repa_pe-spatial.yaml \
         --input-dir data/dog-t2i-diffusion-data/dogs_recaptioned_wds \
         --output-dir data/dog-t2i-diffusion-data/dogs_recaptioned_latents_e2e-invae_pe_spatial \
         --batch-size 16

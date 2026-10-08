@@ -2,10 +2,10 @@
 
 Usage:
     uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \\
-        --config configs/pretrain_repa_dinov2_mse.yaml --compile --wandb
+        --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml --compile --wandb
     # SFT from a pretrained checkpoint:
     uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \\
-        --config configs/sft_eupe_norepa.yaml --ckpt ckpts/<pretrain-run>/checkpoints/ep-0000200.pt \\
+        --config configs/sft_e2e-invae_128tok_mse_norepa.yaml --ckpt ckpts/<pretrain-run>/checkpoints/ep-0000200.pt \\
         --init-weights-only --compile --wandb
 """
 

@@ -7,14 +7,14 @@
 </p>
 
 <p align="center">
-  <a href="assets/minidog-60s.mp4"><img src="assets/minidog-teaser.gif" alt="MiniDog in 60 seconds" width="88%"></a>
+  <a href="assets/minidog-video.mp4"><img src="assets/minidog-teaser.gif" alt="MiniDog in 44 seconds" width="88%"></a>
 </p>
-<p align="center"><sub><a href="assets/minidog-60s.mp4">Full 60-second version</a></sub></p>
+<p align="center"><sub><a href="assets/minidog-video.mp4">Full 44-second video</a></sub></p>
 
 MiniDog is a minimal teaching and research resource for flow-matching generative models, in two parts.
 
 - **[Warm-up](#warm-up-flow-matching-basics)**: learn flow-matching basics on 2D toy data. Runs on CPU in [`toy_flow_matching.ipynb`](toy_flow_matching.ipynb), ~15 minutes.
-- **[The five lessons](#the-five-lessons)**: build a text-to-image diffusion transformer one design decision at a time, each backed by a controlled experiment you can rerun. Runs on 4 consumer GPUs (RTX 3090) from the [`minidog/`](minidog/) package. Pretraining reaches FID 8.32 in 75 minutes of training, fine-tuning takes 20 more.
+- **[The five lessons](#the-five-lessons)**: build a text-to-image diffusion transformer and test one design decision at a time, each backed by a controlled experiment you can rerun. Runs on 4 consumer GPUs (RTX 3090) from the [`minidog/`](minidog/) package. Pretraining reaches FID 8.32 in 55 minutes, fine-tuning takes 15 more.
 
 Both tasks train the same objective:
 
@@ -34,7 +34,7 @@ The same flow-matching pieces appear in the warm-up and in the full pipeline. Re
 |---|---|---|
 | Forward process `x_t = (1-t) x + t eps` | *Flow matching* cell, `training_losses` | [`Transport.sample`](minidog/transport.py#L103) |
 | Target `v = eps - x`, MSE loss | same cell | [`compute_loss`](minidog/transport.py#L135) |
-| x- vs v-prediction | `pred_type` branches | [`convert_model_pred`](minidog/transport.py#L128), config [`transport.prediction`](configs/pretrain_repa_dinov2_mse.yaml#L28) |
+| x- vs v-prediction | `pred_type` branches | [`convert_model_pred`](minidog/transport.py#L128), config [`transport.prediction`](configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml#L28) |
 | Timestep sampling during training | uniform `t` | [`get_time_sampler`](minidog/transport.py#L79), logit-normal |
 | Euler sampling from noise to data | `sample` | [`Sampler.sample_ode`](minidog/transport.py#L155) |
 | Time conditioning of the network | *Model* cell, `SinusoidalEmbedding` | [`GaussianFourierEmbedding`](minidog/dit.py#L86), 4 time tokens |
@@ -63,18 +63,20 @@ Run [the notebook](toy_flow_matching.ipynb) top to bottom. Each cell is explaine
 
 ### The five lessons
 
-4x3090 GPUs, 75 minutes pretraining, 20 minutes fine-tuning (about 2.5 hours with the in-training FID evaluations left on).
+4x3090 GPUs, 55 minutes pretraining, 15 minutes fine-tuning, not counting the FID evaluation during
+training. The configs evaluate FID every 5,000 steps; set `eval.eval_interval: 0` to turn it off.
+Leaving it on doubles the pretraining time and adds about an hour to fine-tuning.
 
-Each lesson asks one design question and answers it with a controlled experiment, in the order the
-pipeline is built. Together they take FID from 16.72 to 8.32 in the same training budget.
+Each lesson asks one design question and answers it with a controlled experiment that changes one
+setting of the final recipe (E2E-INVAE tokenizer, 128-token captions, iREPA with EUPE, squared error)
+and keeps everything else fixed. Every FID is at 200 epochs (~20k steps).
 
 | Lesson | Question | Answer | FID |
 |---|---|---|---|
-| — | Starting point: E2E-VAVAE, 64-token captions, no alignment | | 16.72 |
-| 1. Tokenizer | Which tokenizer? | E2E-INVAE. Good reconstruction is necessary but not sufficient; the latents also have to be easy to model | 12.70 |
-| 2. Captions | How detailed should captions be? | The 128-token captions | 11.47 |
-| 3. Alignment | Does representation alignment help? | Yes, most on a small training budget | 8.80 |
-| 4. Target | Which target representation? | EUPE with iREPA. Which target is best depends on how it is aligned | **8.32** |
+| 1. Tokenizer | Which tokenizer? | E2E-INVAE: better reconstruction on all four metrics, and latents that are easier to model | 8.32 vs 12.23 (E2E-VAVAE) |
+| 2. Captions | How detailed should captions be? | The 128-token captions | 8.32 vs 8.54 (64 tokens) |
+| 3. Alignment | Does representation alignment help? | Yes; with EUPE, iREPA helps more than REPA | 8.32 (iREPA) vs 9.71 (REPA) vs 11.47 (none) |
+| 4. Target | Which target representation, and which distance? | EUPE for iREPA, DINOv2 for REPA (8.80); squared error beats cosine in every case | **8.32** (iREPA, EUPE) |
 | 5. SFT | Does fine-tuning on high-quality images help? | Yes: HPSv2 0.1625 -> 0.2427, PickScore 18.42 -> 19.61 | — |
 
 Follow [`minidog/README.md`](minidog/README.md) to run them: download the data, precompute latents,
@@ -85,11 +87,11 @@ pretrain, fine-tune, generate, score. The configs behind every number are listed
 
 Ideas to explore once both tasks run:
 
-- Set [`transport.prediction`](configs/pretrain_repa_dinov2_mse.yaml#L28) to `x` and compare FID curves: the warm-up question at full scale.
-- Turn [`repa.use_repa`](configs/pretrain_repa_dinov2_mse.yaml#L86) off, change `repa.repa_layer_depth`, or swap the target representation: the four encoders compared in the paper each have a config pair, `configs/pretrain_{repa,irepa}_{dinov2,dinov3,pe_spatial,eupe}_{mse,cosine}.yaml`.
-- Try another tokenizer: add a class with `encode`/`decode` to [`minidog/vae.py`](minidog/vae.py) and point [`stage_1.target`](configs/pretrain_repa_dinov2_mse.yaml#L2) at it, e.g. the [FLUX.2](https://huggingface.co/black-forest-labs/FLUX.2-dev) VAE or [RAEv2](https://github.com/nanovisionx/RAEv2).
-- Sweep [`guidance.cfg.scale`](configs/pretrain_repa_dinov2_mse.yaml#L36) on a checkpoint with [`minidog.offline_eval`](minidog/offline_eval.py).
-- Fine-tune on your own images: pack `jpg` + `txt` WebDataset shards, build FID stats with [`minidog.fid_stats`](minidog/fid_stats.py), precompute with [`sft_eupe_norepa.yaml`](configs/sft_eupe_norepa.yaml), train from the pretrain checkpoint.
+- Set [`transport.prediction`](configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml#L28) to `x` and compare FID curves: the warm-up question at full scale.
+- Turn [`repa.use_repa`](configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml#L86) off, change `repa.repa_layer_depth`, or swap the target representation: the four encoders compared in the paper have one config per method and distance, `configs/pretrain_e2e-invae_128tok_{mse,cosine}_{repa,irepa}_{dinov2,dinov3,pe-spatial,eupe}.yaml`.
+- Try another tokenizer: add a class with `encode`/`decode` to [`minidog/vae.py`](minidog/vae.py) and point [`stage_1.target`](configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml#L2) at it, e.g. the [FLUX.2](https://huggingface.co/black-forest-labs/FLUX.2-dev) VAE or [RAEv2](https://github.com/nanovisionx/RAEv2).
+- Sweep [`guidance.cfg.scale`](configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml#L36) on a checkpoint with [`minidog.offline_eval`](minidog/offline_eval.py).
+- Fine-tune on your own images: pack `jpg` + `txt` WebDataset shards, build FID stats with [`minidog.fid_stats`](minidog/fid_stats.py), precompute with [`sft_e2e-invae_128tok_mse_norepa.yaml`](configs/sft_e2e-invae_128tok_mse_norepa.yaml), train from the pretrain checkpoint.
 
 ## Layout
 

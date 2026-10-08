@@ -6,7 +6,7 @@ fine-tuned checkpoint on the same captions (e.g. pretrain vs. dogs-SFT).
 
 Usage:
     uv run python -m minidog.generate \
-        --config configs/pretrain_repa_dinov2_mse.yaml \
+        --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml \
         --checkpoint ckpts/<run-name>/checkpoints/ep-0000200.pt \
         --captions-json /path/to/captions.json \
         --output-dir results/dog_comparison/pretrained \
