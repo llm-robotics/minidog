@@ -25,22 +25,22 @@ Every FID is a single run of 200 epochs (~20k steps), measured against the 26k p
 | `pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml` | E2E-INVAE | iREPA, EUPE, squared error | 128 | 200 | 0.9995 | 1e-4 for 100 epochs, then linear decay | **FID 8.32** |
 | `sft_e2e-invae_128tok_mse_norepa.yaml` | E2E-INVAE | none | 128 | 100 | 0.995 | 5e-5, constant | Fine-tunes the 8.32 checkpoint on the 2k synthetic dogs: HPSv2 0.1625 -> 0.2427, PickScore 18.42 -> 19.61. Launch with `--ckpt <pretrain ckpt> --init-weights-only` |
 
-## Lessons 1-3: tokenizer, captions, alignment
+## Tokenizer, caption length and alignment (Figs. 3-4, Table 2)
 
 Each config changes one setting of the final recipe and keeps everything else fixed.
 
-| Lesson | Config | Changed setting | FID |
+| In the paper | Config | Changed setting | FID |
 |---|---|---|---|
-| — | `pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml` | none (the final recipe) | **8.32** |
-| 1. Tokenizer | `pretrain_e2e-vavae_128tok_mse_irepa_eupe.yaml` | E2E-VAVAE instead of E2E-INVAE | 12.23 |
-| 2. Captions | `pretrain_e2e-invae_64tok_mse_irepa_eupe.yaml` | 64-token instead of 128-token captions | 8.54 |
-| 3. Alignment | `pretrain_e2e-invae_128tok_mse_repa_eupe.yaml` | REPA instead of iREPA | 9.71 |
-| 3. Alignment | `pretrain_e2e-invae_128tok_mse_norepa.yaml` | no alignment | 11.47 |
+| Fig. 3, Table 2 | `pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml` | none (the final recipe) | **8.32** |
+| Fig. 3 | `pretrain_e2e-vavae_128tok_mse_irepa_eupe.yaml` | E2E-VAVAE instead of E2E-INVAE | 12.23 |
+| Table 2 | `pretrain_e2e-invae_64tok_mse_irepa_eupe.yaml` | 64-token instead of 128-token captions | 8.54 |
+| Fig. 4 | `pretrain_e2e-invae_128tok_mse_repa_eupe.yaml` | REPA instead of iREPA | 9.71 |
+| Fig. 4 | `pretrain_e2e-invae_128tok_mse_norepa.yaml` | no alignment | 11.47 |
 
-The tokenizers' reconstruction quality (PSNR, SSIM, LPIPS, rFID) is in
-[`results/recon/README.md`](../results/recon/README.md).
+The tokenizers' reconstruction quality (Table 1: PSNR, SSIM, LPIPS, rFID) needs no config; it is
+computed with `python -m minidog.recon_eval`, as shown in the [top-level README](../README.md).
 
-## Lesson 4: target representation and distance
+## Target representation and distance (Table 3)
 
 Sixteen configs named `pretrain_e2e-invae_128tok_{mse,cosine}_{repa,irepa}_{target}.yaml`, identical
 apart from the alignment. REPA uses a linear projector; iREPA uses a 3x3 convolution with spatial
@@ -86,8 +86,8 @@ reference stats are produced locally:
 | `dogs_recaptioned_stats.npz` | InceptionV3 mu/sigma for FID | `python -m minidog.fid_stats --data-dir .../dogs_recaptioned_wds --output .../dogs_recaptioned_stats.npz` |
 | `dogs_recaptioned_latents_e2e-invae_eupe/` | the final recipe and the other EUPE runs (E2E-INVAE + EUPE features) | `python -m minidog.precompute_latents_eupe --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml --input-dir .../dogs_recaptioned_wds --output-dir .../dogs_recaptioned_latents_e2e-invae_eupe` |
 | `dogs_synthetic_2k_latents_e2e-invae_eupe/` | SFT latents (E2E-INVAE, no alignment features) | `python -m minidog.precompute_latents_eupe --config configs/sft_e2e-invae_128tok_mse_norepa.yaml` and the synthetic shards |
-| `dogs_recaptioned_latents_e2e-vavae_eupe/` | Lesson 1 (E2E-VAVAE + EUPE features) | `python -m minidog.precompute_latents_eupe --config configs/pretrain_e2e-vavae_128tok_mse_irepa_eupe.yaml` and the 26k shards |
-| `dogs_recaptioned_64tok_latents_e2e-invae_eupe/` | Lesson 2 (64-token captions + EUPE features) | `python -m minidog.precompute_latents_eupe --config configs/pretrain_e2e-invae_64tok_mse_irepa_eupe.yaml --input-dir .../dogs_recaptioned_64tok_wds` |
+| `dogs_recaptioned_latents_e2e-vavae_eupe/` | the tokenizer comparison, Fig. 3 (E2E-VAVAE + EUPE features) | `python -m minidog.precompute_latents_eupe --config configs/pretrain_e2e-vavae_128tok_mse_irepa_eupe.yaml` and the 26k shards |
+| `dogs_recaptioned_64tok_latents_e2e-invae_eupe/` | the caption-length comparison, Table 2 (64-token captions + EUPE features) | `python -m minidog.precompute_latents_eupe --config configs/pretrain_e2e-invae_64tok_mse_irepa_eupe.yaml --input-dir .../dogs_recaptioned_64tok_wds` |
 | `dogs_recaptioned_latents_e2e-invae/` | the DINOv2 runs and the 128-token no-alignment run | `python -m minidog.precompute_latents --config configs/pretrain_e2e-invae_128tok_mse_repa_dinov2.yaml --input-dir .../dogs_recaptioned_wds --output-dir .../dogs_recaptioned_latents_e2e-invae` |
 | `dogs_recaptioned_latents_e2e-invae_{dinov3,pe_spatial}/` | the other target representations | same, with the matching `precompute_latents_*` script and config |
 | `dogs_recaptioned_latents_e2e-vavae/`, `dogs_recaptioned_64tok_latents_e2e-{invae,vavae}/` | the extra configs | `python -m minidog.precompute_latents` with the `*_repa_dinov2` config of that tokenizer and caption length |
