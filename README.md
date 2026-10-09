@@ -1,7 +1,7 @@
 <p align="center"><img src="assets/minidog-full.png" alt="MiniDog" width="70%"></p>
 
 <p align="center">
-  <a href="https://reyhaneesmailizadeh.github.io/minidog/" target="_blank"><img src="https://img.shields.io/badge/Project-Page-2563EB?style=for-the-badge" alt="Project page"></a>
+  <a href="https://llm-robotics.github.io/minidog/" target="_blank"><img src="https://img.shields.io/badge/Project-Page-2563EB?style=for-the-badge" alt="Project page"></a>
   <a href="https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data" target="_blank"><img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white" alt="Dataset"></a>
   <a href="https://huggingface.co/reyhanehesi/minidog-checkpoints" target="_blank"><img src="https://img.shields.io/badge/Checkpoints-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white" alt="Checkpoints"></a>
 </p>
@@ -34,7 +34,7 @@ You need Linux, NVIDIA GPUs with a driver that supports CUDA 12.8 (the paper use
 3090s), and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/Reyhaneesmailizadeh/minidog && cd minidog
+git clone -b irepa-eupe https://github.com/llm-robotics/minidog && cd minidog
 curl -LsSf https://astral.sh/uv/install.sh | sh   # skip if you already have uv
 uv sync
 ```
@@ -298,7 +298,7 @@ for example `pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml` for the final recipe
             to Fine-Tuning on 4 Consumer GPUs},
   author = {Esmailizadeh, Reyhaneh and Leng, Xingjian and Liang, Zhanhao and Zheng, Liang},
   year   = {2026},
-  url    = {https://github.com/Reyhaneesmailizadeh/minidog}
+  url    = {https://github.com/llm-robotics/minidog/tree/irepa-eupe}
 }
 ```
 

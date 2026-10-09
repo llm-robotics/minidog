@@ -268,9 +268,9 @@ video { display: block; width: 100%; border-radius: 6px; background: #000000; }
 
 <nav class="topbar" aria-label="Site">
   <div class="in">
-    <a class="home" href="https://github.com/Reyhaneesmailizadeh/minidog">
+    <a class="home" href="https://github.com/llm-robotics/minidog/tree/irepa-eupe">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
-      Reyhaneesmailizadeh / minidog
+      llm-robotics / minidog
     </a>
     <div class="right">
       <a href="https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data">Dataset</a>
@@ -315,7 +315,7 @@ video { display: block; width: 100%; border-radius: 6px; background: #000000; }
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
             Paper (coming soon)
           </span>
-          <a href="https://github.com/Reyhaneesmailizadeh/minidog">
+          <a href="https://github.com/llm-robotics/minidog/tree/irepa-eupe">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>
             Code
           </a>
@@ -390,7 +390,7 @@ video { display: block; width: 100%; border-radius: 6px; background: #000000; }
     <div class="qs-card">
       <div class="install-box"><strong>Installation and data:</strong> clone the code, install it with uv, and download the datasets and the EUPE encoder.</div>
       <div class="code-wrap">
-<pre><code>git clone https://github.com/Reyhaneesmailizadeh/minidog && cd minidog && uv sync
+<pre><code>git clone -b irepa-eupe https://github.com/llm-robotics/minidog && cd minidog && uv sync
 export DATA=data/dog-t2i-diffusion-data
 uv run hf download reyhanehesi/dog-t2i-diffusion-data --local-dir $DATA --repo-type dataset
 for NAME in dogs_recaptioned_wds dogs_synthetic_2k_wds dogs_recaptioned_64tok_wds; do
@@ -680,7 +680,7 @@ uv run python -m minidog.score_absolute --dirs results/samples/pretrain results/
             to Fine-Tuning on 4 Consumer GPUs},
   author = {Esmailizadeh, Reyhaneh and Leng, Xingjian and Liang, Zhanhao and Zheng, Liang},
   year   = {2026},
-  url    = {https://github.com/Reyhaneesmailizadeh/minidog}
+  url    = {https://github.com/llm-robotics/minidog/tree/irepa-eupe}
 }</code></pre>
   </div>
 </section>
