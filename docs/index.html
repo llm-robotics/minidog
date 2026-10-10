@@ -206,6 +206,15 @@ h3.text { font-size: 1.25em; line-height: 1.35; margin: 1.6em auto 0.4em; }
 .data-table caption strong { color: var(--text-primary); }
 .data-table.wide-table td:not(:first-child) { white-space: normal; min-width: 7.5em; }
 
+/* Dropdown */
+details.dropdown { margin: 20px auto; border: 1px solid var(--border-light); border-left: 4px solid var(--accent-soft); border-radius: 4px; background: var(--config-bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); }
+details.dropdown > summary { cursor: pointer; list-style: none; padding: 12px 18px; font-weight: 700; color: var(--accent-soft); display: flex; align-items: center; gap: 10px; }
+details.dropdown > summary::-webkit-details-marker { display: none; }
+details.dropdown > summary::before { content: ""; width: 0.5em; height: 0.5em; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform 0.2s ease; flex: none; }
+details.dropdown[open] > summary::before { transform: rotate(45deg); }
+details.dropdown > summary:hover { color: var(--accent); }
+details.dropdown .table-container { margin: 4px auto 18px; padding-inline: 12px; }
+
 /* Quickstart */
 .qs-card { border: 1px solid var(--border-light); border-radius: 8px; padding: 20px; background: var(--bg-page); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); }
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0 auto 18px; }
@@ -257,7 +266,6 @@ video { display: block; width: 100%; border-radius: 6px; background: #000000; }
 <nav class="toc-container" id="toc" aria-label="Contents">
   <h4>Contents</h4>
   <ul>
-    <li><a href="#quickstart">Quickstart</a></li>
     <li><a href="#resource">The MiniDog Resource</a></li>
     <li><a href="#training">Training Recipe</a></li>
     <li><a href="#results">Results</a></li>
@@ -360,9 +368,9 @@ video { display: block; width: 100%; border-radius: 6px; background: #000000; }
   </ol>
 
   <div class="icon-row">
-    <a href="#quickstart" class="icon-link">
-      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="9" width="38" height="30" rx="4"/><path d="M13 20l6 5-6 5M23 31h11"/></svg>
-      Quickstart
+    <a href="#training" class="icon-link">
+      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12h32M8 24h32M8 36h32"/><circle cx="17" cy="12" r="4" fill="#fff"/><circle cx="31" cy="24" r="4" fill="#fff"/><circle cx="21" cy="36" r="4" fill="#fff"/></svg>
+      Training Recipe
     </a>
     <a href="#resource" class="icon-link">
       <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="18" width="11" height="12" rx="2"/><rect x="33" y="18" width="11" height="12" rx="2"/><rect x="18.5" y="8" width="11" height="12" rx="2"/><rect x="18.5" y="28" width="11" height="12" rx="2"/><path d="M15 24h3.5M29.5 24H33M24 20v8"/></svg>
@@ -381,85 +389,6 @@ video { display: block; width: 100%; border-radius: 6px; background: #000000; }
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9l11 4-5 2-2 5z"/><path d="M5 3.5l1.5 2M2.5 8.5H5M10 2v2.5"/></svg>
     <strong>Click to jump to each section.</strong>
   </p>
-
-  <hr>
-
-  <!-- Quickstart -->
-  <section id="quickstart">
-    <h1 class="text centered">Quickstart</h1>
-    <div class="qs-card">
-      <div class="install-box"><strong>Installation and data:</strong> clone the code, install it with uv, and download the datasets and the EUPE encoder.</div>
-      <div class="code-wrap">
-<pre><code>git clone -b irepa-eupe https://github.com/llm-robotics/minidog && cd minidog && uv sync
-export DATA=data/dog-t2i-diffusion-data
-uv run hf download reyhanehesi/dog-t2i-diffusion-data --local-dir $DATA --repo-type dataset
-for NAME in dogs_recaptioned_wds dogs_synthetic_2k_wds dogs_recaptioned_64tok_wds; do
-  mkdir -p $DATA/$NAME && tar -xzf $DATA/$NAME.tar.gz -C $DATA/$NAME && rm $DATA/$NAME.tar.gz
-done
-uv run python -m minidog.fid_stats --data-dir $DATA/dogs_recaptioned_wds \
-    --output $DATA/dogs_recaptioned_stats.npz
-
-# EUPE ViT-B/16, the alignment target (its weights are not downloaded automatically)
-git clone https://github.com/facebookresearch/EUPE ../EUPE
-uv run hf download facebook/EUPE-ViT-B EUPE-ViT-B.pt --local-dir ../eupe_ckpts
-export EUPE_REPO_DIR=$(realpath ../EUPE) EUPE_CKPT_DIR=$(realpath ../eupe_ckpts)</code></pre>
-      </div>
-
-      <div class="tabs" role="tablist" aria-label="Quickstart steps" style="margin-top:22px">
-        <button class="tab" role="tab" id="tab-pre" aria-controls="panel-pre" aria-selected="true" type="button">Pretrain</button>
-        <button class="tab" role="tab" id="tab-sft" aria-controls="panel-sft" aria-selected="false" type="button">Fine-tune</button>
-        <button class="tab" role="tab" id="tab-gen" aria-controls="panel-gen" aria-selected="false" type="button">Generate and score</button>
-      </div>
-
-      <div class="panel" role="tabpanel" id="panel-pre" aria-labelledby="tab-pre">
-        <h3>Pretrain the best recipe</h3>
-        <p>Cache the latents, text embeddings and EUPE features once, then pretrain for 200 epochs.</p>
-        <div class="code-wrap">
-<pre><code>uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe \
-    --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml \
-    --input-dir $DATA/dogs_recaptioned_wds \
-    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae_eupe
-
-export EXPERIMENT_NAME=pretrain
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
-    --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml --compile</code></pre>
-        </div>
-      </div>
-
-      <div class="panel" role="tabpanel" id="panel-sft" aria-labelledby="tab-sft" hidden>
-        <h3>Fine-tune the pretrained checkpoint</h3>
-        <p>Cache the 2k synthetic images, then fine-tune for 100 epochs with the alignment loss off.</p>
-        <div class="code-wrap">
-<pre><code>uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe \
-    --config configs/sft_e2e-invae_128tok_mse_norepa.yaml \
-    --input-dir $DATA/dogs_synthetic_2k_wds \
-    --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae_eupe
-
-export EXPERIMENT_NAME=sft
-uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
-    --config configs/sft_e2e-invae_128tok_mse_norepa.yaml --compile \
-    --ckpt ckpts/pretrain/checkpoints/ep-0000200.pt --init-weights-only</code></pre>
-        </div>
-      </div>
-
-      <div class="panel" role="tabpanel" id="panel-gen" aria-labelledby="tab-gen" hidden>
-        <h3>Generate and score</h3>
-        <p>Sample the 500 held-out prompts from both checkpoints with shared noise, then score them with HPSv2 and PickScore.</p>
-        <div class="code-wrap">
-<pre><code>for RUN in "pretrain configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml" \
-           "sft configs/sft_e2e-invae_128tok_mse_norepa.yaml"; do
-  set -- $RUN
-  uv run python -m minidog.generate --config $2 \
-      --checkpoint $(ls ckpts/$1/checkpoints/*.pt | tail -1) \
-      --captions-json $DATA/captions_500.json \
-      --output-dir results/samples/$1 \
-      --noise-file results/samples/shared_noise_500.pt --group-by-breed
-done
-uv run python -m minidog.score_absolute --dirs results/samples/pretrain results/samples/sft</code></pre>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <hr>
 
@@ -508,7 +437,9 @@ uv run python -m minidog.score_absolute --dirs results/samples/pretrain results/
   <!-- Training recipe -->
   <section id="training">
     <h1 class="text">Training Recipe</h1>
-    <p class="text">Unless otherwise stated, we pretrain for 200 epochs (~20k steps) and fine-tune for 100 epochs (~700 steps). The table lists every hyperparameter of the final recipe.</p>
+    <p class="text">Unless otherwise stated, we pretrain for 200 epochs (~20k steps) and fine-tune for 100 epochs (~700 steps). Click below to see every hyperparameter of the final recipe.</p>
+    <details class="dropdown">
+      <summary>Show all hyperparameters of the final recipe</summary>
     <div class="table-container">
       <table class="data-table wide-table">
         <thead><tr><th></th><th>Pretraining</th><th>SFT</th></tr></thead>
@@ -557,6 +488,7 @@ uv run python -m minidog.score_absolute --dirs results/samples/pretrain results/
         <caption><strong>Hyperparameters of the final recipe.</strong> Configs: <code>pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml</code> and <code>sft_e2e-invae_128tok_mse_norepa.yaml</code>.</caption>
       </table>
     </div>
+    </details>
     <div class="config-box">
       <p><strong>Computing resources:</strong></p>
       <ul>

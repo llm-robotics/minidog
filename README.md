@@ -26,27 +26,25 @@ embeddings of 128-token captions, and pretrained with iREPA alignment to EUPE Vi
 block 4. Image and text features are computed once and cached, so training only updates the
 transformer.
 
-## Reproduce the paper
+## Quickstart
 
-### 1. Install
-
-You need Linux, NVIDIA GPUs with a driver that supports CUDA 12.8 (the paper uses four 24 GB RTX
-3090s), and [uv](https://docs.astral.sh/uv/).
+> [!NOTE]
+> **Installation and data.** Clone the code, install it with [uv](https://docs.astral.sh/uv/), and
+> download the datasets and the EUPE encoder. You need Linux and NVIDIA GPUs with a driver that
+> supports CUDA 12.8; the paper uses four 24 GB RTX 3090s.
 
 ```bash
 git clone -b irepa-eupe https://github.com/llm-robotics/minidog && cd minidog
 curl -LsSf https://astral.sh/uv/install.sh | sh   # skip if you already have uv
 uv sync
-```
 
-### 2. Download the data and the EUPE encoder
-
-```bash
 export DATA=data/dog-t2i-diffusion-data
 uv run hf download reyhanehesi/dog-t2i-diffusion-data --local-dir $DATA --repo-type dataset
 for NAME in dogs_recaptioned_wds dogs_synthetic_2k_wds dogs_recaptioned_64tok_wds; do
   mkdir -p $DATA/$NAME && tar -xzf $DATA/$NAME.tar.gz -C $DATA/$NAME && rm $DATA/$NAME.tar.gz
 done
+uv run python -m minidog.fid_stats --data-dir $DATA/dogs_recaptioned_wds \
+    --output $DATA/dogs_recaptioned_stats.npz
 
 # EUPE ViT-B/16, the alignment target. Its weights are not downloaded automatically.
 git clone https://github.com/facebookresearch/EUPE ../EUPE
@@ -55,49 +53,63 @@ export EUPE_REPO_DIR=$(realpath ../EUPE) EUPE_CKPT_DIR=$(realpath ../eupe_ckpts)
 ```
 
 Keep `DATA`, `EUPE_REPO_DIR` and `EUPE_CKPT_DIR` set in every new shell; the steps below use them.
+Click a step to open it.
 
-### 3. Cache the features (once)
+<details open>
+<summary><b>1. Pretrain the best recipe</b> &nbsp;·&nbsp; 55 minutes on 4 GPUs &nbsp;·&nbsp; FID 8.32</summary>
+<br>
 
-This writes the FID reference statistics of the real photos, then the latents, text embeddings and
-EUPE features of the 26k pretraining photos and the 2k fine-tuning images. Each command takes a few
-minutes on 4 GPUs.
-
-```bash
-uv run python -m minidog.fid_stats --data-dir $DATA/dogs_recaptioned_wds \
-    --output $DATA/dogs_recaptioned_stats.npz
-
-PRE="uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe"
-$PRE --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml \
-    --input-dir $DATA/dogs_recaptioned_wds --output-dir $DATA/dogs_recaptioned_latents_e2e-invae_eupe
-$PRE --config configs/sft_e2e-invae_128tok_mse_norepa.yaml \
-    --input-dir $DATA/dogs_synthetic_2k_wds --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae_eupe
-```
-
-### 4. Pretrain (55 minutes, FID 8.32)
+Cache the latents, text embeddings and EUPE features of the 26k photos once (a few minutes), then
+pretrain for 200 epochs.
 
 ```bash
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe \
+    --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml \
+    --input-dir $DATA/dogs_recaptioned_wds \
+    --output-dir $DATA/dogs_recaptioned_latents_e2e-invae_eupe
+
 export EXPERIMENT_NAME=pretrain
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
     --config configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml --compile
 ```
 
-FID is evaluated during training every 5,000 steps and written to `results/evals/`. The value at step
-20,000 is the paper's FID. This in-training evaluation doubles the run time; the 55 minutes are
-measured without it (set `eval.eval_interval: 0` in the config to turn it off).
+FID is evaluated during training every 5,000 steps and written to `results/evals/`; the value at
+step 20,000 is the paper's FID. This in-training evaluation doubles the run time, and the 55 minutes
+are measured without it (set `eval.eval_interval: 0` in the config to turn it off).
 
-### 5. Fine-tune (15 minutes)
+**Only one GPU?** Use `--nproc_per_node=1` in both commands and train with
+`configs/pretrain_e2e-invae_128tok_mse_irepa_eupe_1gpu.yaml`. It accumulates gradients over four
+batches of 64 images, so every update still averages 256 images and training follows the same
+schedule as on four GPUs. Training alone takes about 3.5 hours on one RTX 3090.
+</details>
+
+<details>
+<summary><b>2. Fine-tune the pretrained checkpoint</b> &nbsp;·&nbsp; 15 minutes on 4 GPUs</summary>
+<br>
+
+Cache the 2k synthetic images, then fine-tune for 100 epochs with the alignment loss off.
 
 ```bash
+uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe \
+    --config configs/sft_e2e-invae_128tok_mse_norepa.yaml \
+    --input-dir $DATA/dogs_synthetic_2k_wds \
+    --output-dir $DATA/dogs_synthetic_2k_latents_e2e-invae_eupe
+
 export EXPERIMENT_NAME=sft
 uv run torchrun --standalone --nproc_per_node=4 -m minidog.train \
     --config configs/sft_e2e-invae_128tok_mse_norepa.yaml --compile \
     --ckpt ckpts/pretrain/checkpoints/ep-0000200.pt --init-weights-only
 ```
 
-Fine-tuning turns the alignment loss off and trains with the flow-matching loss only. In-training FID
-evaluation adds about an hour here; set `eval.eval_interval: 0` to skip it.
+In-training FID evaluation adds about an hour here; set `eval.eval_interval: 0` to skip it.
+</details>
 
-### 6. Generate and score (HPSv2 and PickScore)
+<details>
+<summary><b>3. Generate and score</b> &nbsp;·&nbsp; HPSv2 0.1625 → 0.2427, PickScore 18.42 → 19.61</summary>
+<br>
+
+Sample the 500 held-out prompts from both checkpoints with shared noise, then score them with
+HPSv2 and PickScore.
 
 ```bash
 for RUN in "pretrain configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml" \
@@ -111,13 +123,15 @@ done
 uv run python -m minidog.score_absolute --dirs results/samples/pretrain results/samples/sft
 ```
 
-Expected: HPSv2 0.1625 → 0.2427 and PickScore 18.42 → 19.61, averaged over the 500 held-out prompts.
 `--noise-file` reuses the same 500 noise tensors for both checkpoints, so each pair of images differs
 only by the checkpoint.
+</details>
 
-### Skip training: score the released checkpoints
+<details>
+<summary><b>No training: score the released checkpoints</b></summary>
+<br>
 
-After steps 1 and 2, download the two checkpoints and run step 6 on them:
+After the installation step, download the two checkpoints and generate and score with them:
 
 ```bash
 uv run hf download reyhanehesi/minidog-checkpoints --local-dir ckpts/released
@@ -130,11 +144,12 @@ for RUN in "pretrain configs/pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml irepa
 done
 uv run python -m minidog.score_absolute --dirs results/samples/pretrain results/samples/sft
 ```
+</details>
 
 ## Reproduce the comparisons
 
 Each comparison in the paper changes one setting of the final recipe and keeps the rest fixed. Train
-a config exactly like step 4, after caching the features it reads (see the dropdown below):
+a config exactly like step 1 of the quickstart, after caching the features it reads (see the dropdown below):
 
 ```bash
 CONFIG=configs/pretrain_e2e-vavae_128tok_mse_irepa_eupe.yaml
@@ -162,7 +177,7 @@ uv run --with torchmetrics --with lpips python -m minidog.recon_eval --vae-type 
 <summary><b>Cache the features each comparison reads</b></summary>
 
 Each config reads the latents folder named in its `dataset.data_dir`. The final recipe's folder from
-step 3 already covers the EUPE runs at 128 tokens with E2E-INVAE.
+the quickstart already covers the EUPE runs at 128 tokens with E2E-INVAE.
 
 ```bash
 EUPE="uv run torchrun --standalone --nproc_per_node=4 -m minidog.precompute_latents_eupe"
