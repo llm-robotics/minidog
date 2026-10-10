@@ -78,10 +78,11 @@ FID is evaluated during training every 5,000 steps and written to `results/evals
 step 20,000 is the paper's FID. This in-training evaluation doubles the run time, and the 55 minutes
 are measured without it (set `eval.eval_interval: 0` in the config to turn it off).
 
-**Only one GPU?** Use `--nproc_per_node=1` in both commands and train with
+**Only one GPU?** Use `--nproc_per_node=1` in both `torchrun` commands and train with
 `configs/pretrain_e2e-invae_128tok_mse_irepa_eupe_1gpu.yaml`. It accumulates gradients over four
-batches of 64 images, so every update still averages 256 images and training follows the same
-schedule as on four GPUs. Training alone takes about 3.5 hours on one RTX 3090.
+micro-batches of 64 images, so each optimizer step still uses 256 images and training follows the
+same schedule as on four GPUs. Without the in-training FID evaluation, training takes about 3 hours
+on one RTX 3090. This config evaluates FID only once, at step 20,000, instead of every 5,000 steps.
 </details>
 
 <details>

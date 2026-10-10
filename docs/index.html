@@ -515,6 +515,7 @@ video { display: block; width: 100%; border-radius: 6px; background: #000000; }
     <p class="text">Our best pretraining recipe is to use E2E-INVAE as the tokenizer, 128-token captions, iREPA for acceleration with a mean squared error loss, and EUPE as the external vision encoder. This recipe yields <strong>gFID = 8.32</strong> at a resolution of 256×256. We then apply standard SFT, which gives <strong>HPSv2 = 0.2427</strong> and <strong>PickScore = 19.61</strong>. Samples after SFT are shown at the top of this page.</p>
     <h3 class="text">Efficiency</h3>
     <p class="text">Using four 3090 GPUs, pretraining for 200 epochs takes 55 minutes, while SFT for 100 epochs takes 15 minutes. The image and text tokens are precomputed and cached before training.</p>
+    <p class="text">MiniDog also runs on a single 3090 GPU. Accumulating gradients over four micro-batches of 64 images keeps the batch of 256 images and the training schedule of the four-GPU run, and pretraining then takes about 3 hours, excluding the in-training FID evaluation.</p>
   </section>
 
   <hr>
