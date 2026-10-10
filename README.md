@@ -1,6 +1,7 @@
 <p align="center"><img src="assets/minidog-full.png" alt="MiniDog" width="70%"></p>
 
 <p align="center">
+  <a href="https://neurips.cc/" target="_blank"><img src="https://img.shields.io/badge/NeurIPS%202026-Education%20Track-7B2CBF?style=for-the-badge" alt="NeurIPS 2026 Education Track"></a>
   <a href="https://reyhaneesmailizadeh.github.io/minidog/" target="_blank"><img src="https://img.shields.io/badge/Project-Page-2563EB?style=for-the-badge" alt="Project page"></a>
   <a href="https://huggingface.co/datasets/reyhanehesi/dog-t2i-diffusion-data" target="_blank"><img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white" alt="Dataset"></a>
   <a href="https://huggingface.co/reyhanehesi/minidog-checkpoints" target="_blank"><img src="https://img.shields.io/badge/Checkpoints-FFD21E?style=for-the-badge&logo=huggingface&logoColor=white" alt="Checkpoints"></a>
@@ -14,7 +15,7 @@
 **MiniDog** pretrains a 22M-parameter text-to-image diffusion transformer in **55 minutes** and fine-tunes
 it in another **15 minutes** on four RTX 3090 GPUs. It is a minimal, open resource for learning
 text-to-image flow matching end to end: data, architecture, training, and evaluation, from pretraining
-to fine-tuning.
+to fine-tuning. MiniDog is teaching material accepted to the **NeurIPS 2026 Education Track**.
 
 | Stage | Data | Time on 4× RTX 3090 | Result |
 |---|---|---|---|
@@ -313,7 +314,8 @@ for example `pretrain_e2e-invae_128tok_mse_irepa_eupe.yaml` for the final recipe
             to Fine-Tuning on 4 Consumer GPUs},
   author = {Esmailizadeh, Reyhaneh and Leng, Xingjian and Liang, Zhanhao and Zheng, Liang},
   year   = {2026},
-  url    = {https://github.com/Reyhaneesmailizadeh/minidog/tree/irepa-eupe}
+  url    = {https://github.com/Reyhaneesmailizadeh/minidog/tree/irepa-eupe},
+  note   = {NeurIPS 2026 Education Track}
 }
 ```
 
