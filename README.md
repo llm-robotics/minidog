@@ -32,7 +32,9 @@ transformer.
 > [!NOTE]
 > **Installation and data.** Clone the code, install it with [uv](https://docs.astral.sh/uv/), and
 > download the datasets and the EUPE encoder. You need Linux and NVIDIA GPUs with a driver that
-> supports CUDA 12.8; the paper uses four 24 GB RTX 3090s.
+> supports CUDA 12.8; the paper uses four 24 GB RTX 3090s. Plan for about 50 GB of free disk: 20 GB
+> for the data and cached features, 8 GB for the Python environment, and 20 GB of model and package
+> caches under `~/.cache` (set `HF_HOME` and `UV_CACHE_DIR` to move them if your home directory is small).
 
 ```bash
 git clone -b irepa-eupe https://github.com/Reyhaneesmailizadeh/minidog && cd minidog
@@ -54,7 +56,12 @@ export EUPE_REPO_DIR=$(realpath ../EUPE) EUPE_CKPT_DIR=$(realpath ../eupe_ckpts)
 ```
 
 Keep `DATA`, `EUPE_REPO_DIR` and `EUPE_CKPT_DIR` set in every new shell; the steps below use them.
-Click a step to open it.
+Click a step to open it. The first runs print a few harmless warnings, such as `accelerate` not being
+installed and the "unexpected keys" of EUPE's distillation heads, which MiniDog does not use.
+
+`uv sync` installs Python 3.13 (pinned in `.python-version`). If training stops with
+`fatal error: Python.h: No such file or directory`, your system Python lacks its development headers,
+which `--compile` needs; run `uv sync --managed-python` to switch to uv's own Python, which has them.
 
 <details open>
 <summary><b>1. Pretrain the best recipe</b> &nbsp;·&nbsp; 55 minutes on 4 GPUs &nbsp;·&nbsp; FID 8.32</summary>
